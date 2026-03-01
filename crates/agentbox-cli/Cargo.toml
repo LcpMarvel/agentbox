@@ -1,0 +1,27 @@
+[package]
+name = "agentbox-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "agentbox"
+path = "src/main.rs"
+
+[dependencies]
+agentbox-core = { path = "../agentbox-core" }
+agentbox-db = { path = "../agentbox-db" }
+agentbox-daemon = { path = "../agentbox-daemon" }
+agentbox-mcp = { path = "../agentbox-mcp" }
+clap = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+comfy-table = { workspace = true }
+colored = { workspace = true }
+dirs = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+libc = "0.2"
+cron = { workspace = true }

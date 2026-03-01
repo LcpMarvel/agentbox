@@ -1,0 +1,21 @@
+[package]
+name = "agentbox-daemon"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agentbox-core = { path = "../agentbox-core" }
+agentbox-db = { path = "../agentbox-db" }
+agentbox-web = { path = "../agentbox-web" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+cron = { workspace = true }
+nix = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rusqlite = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }
+libc = "0.2"

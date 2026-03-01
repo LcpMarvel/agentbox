@@ -1,0 +1,14 @@
+[package]
+name = "agentbox-mcp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agentbox-core = { path = "../agentbox-core" }
+rmcp = { version = "0.12", features = ["server", "transport-io", "macros"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = "1.0"
+anyhow = { workspace = true }
+tracing = { workspace = true }
