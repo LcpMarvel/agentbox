@@ -31,9 +31,10 @@ detect_platform() {
 }
 
 get_latest_version() {
-    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-        | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
-    [ -z "$VERSION" ] && error "Could not determine latest version"
+    RESPONSE=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) \
+        || error "Could not fetch releases from GitHub. Check https://github.com/${REPO}/releases"
+    VERSION=$(echo "$RESPONSE" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+    [ -z "$VERSION" ] && error "No releases found. Check https://github.com/${REPO}/releases"
 }
 
 download_and_install() {
@@ -76,6 +77,12 @@ main() {
 
     info "AgentBox ${VERSION} installed to ${INSTALL_DIR}/${BINARY_NAME}"
     echo ""
+    case ":$PATH:" in
+        *":${INSTALL_DIR}:"*) ;;
+        *) echo "  Restart your shell or run:"
+           echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
+           echo "" ;;
+    esac
     echo "  Get started:"
     echo "    agentbox register my-agent \"echo hello\""
     echo "    agentbox run my-agent"
