@@ -1,8 +1,8 @@
 # Default: run all checks (same as CI)
 default: check
 
-# Run all CI checks
-check: fmt clippy test dashboard-build
+# Run all CI checks (dashboard must build first for rust-embed)
+check: dashboard-build fmt clippy test
 
 # Format check
 fmt:
