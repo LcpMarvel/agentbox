@@ -1,7 +1,7 @@
 use super::ipc_call;
 use agentbox_db::models::Agent;
 use colored::Colorize;
-use comfy_table::{Table, ContentArrangement, presets::UTF8_FULL_CONDENSED};
+use comfy_table::{presets::UTF8_FULL_CONDENSED, ContentArrangement, Table};
 
 pub async fn execute() -> anyhow::Result<()> {
     let resp = ipc_call("agent.list", serde_json::json!({})).await?;
@@ -22,7 +22,8 @@ pub async fn execute() -> anyhow::Result<()> {
 
         for agent in &agents {
             let status = format_status(&agent.status, agent.paused);
-            let schedule = format_schedule(&agent.schedule_type, &agent.cron_expr, agent.interval_secs);
+            let schedule =
+                format_schedule(&agent.schedule_type, &agent.cron_expr, agent.interval_secs);
             let last_run = agent.last_run_at.as_deref().unwrap_or("never");
             let cmd = if agent.command.len() > 40 {
                 format!("{}…", &agent.command[..39])
@@ -30,13 +31,7 @@ pub async fn execute() -> anyhow::Result<()> {
                 agent.command.clone()
             };
 
-            table.add_row(vec![
-                &agent.name,
-                &status,
-                &schedule,
-                last_run,
-                &cmd,
-            ]);
+            table.add_row(vec![&agent.name, &status, &schedule, last_run, &cmd]);
         }
 
         println!("{table}");

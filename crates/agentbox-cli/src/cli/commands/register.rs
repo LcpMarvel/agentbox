@@ -12,9 +12,11 @@ pub async fn execute(
 ) -> anyhow::Result<()> {
     // If no working dir specified, capture caller's current directory
     // so relative paths in commands (e.g. "python ./test.py") resolve correctly
-    let effective_dir = working_dir
-        .map(|d| d.to_string())
-        .or_else(|| std::env::current_dir().ok().map(|p| p.to_string_lossy().into_owned()));
+    let effective_dir = working_dir.map(|d| d.to_string()).or_else(|| {
+        std::env::current_dir()
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned())
+    });
 
     let mut params = serde_json::json!({
         "name": name,

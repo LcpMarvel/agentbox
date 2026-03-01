@@ -25,13 +25,15 @@ impl AlertRepo {
         let ch = conn.query_row(
             "SELECT id, channel, config, enabled, created_at FROM alert_channels WHERE id = ?1",
             params![id],
-            |row| Ok(AlertChannel {
-                id: row.get(0)?,
-                channel: row.get(1)?,
-                config: row.get(2)?,
-                enabled: row.get(3)?,
-                created_at: row.get(4)?,
-            }),
+            |row| {
+                Ok(AlertChannel {
+                    id: row.get(0)?,
+                    channel: row.get(1)?,
+                    config: row.get(2)?,
+                    enabled: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            },
         )?;
         Ok(ch)
     }
@@ -42,13 +44,15 @@ impl AlertRepo {
             "SELECT id, channel, config, enabled, created_at FROM alert_channels WHERE enabled = 1",
         )?;
         let channels = stmt
-            .query_map([], |row| Ok(AlertChannel {
-                id: row.get(0)?,
-                channel: row.get(1)?,
-                config: row.get(2)?,
-                enabled: row.get(3)?,
-                created_at: row.get(4)?,
-            }))?
+            .query_map([], |row| {
+                Ok(AlertChannel {
+                    id: row.get(0)?,
+                    channel: row.get(1)?,
+                    config: row.get(2)?,
+                    enabled: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(channels)
     }
@@ -59,13 +63,15 @@ impl AlertRepo {
             "SELECT id, channel, config, enabled, created_at FROM alert_channels ORDER BY id",
         )?;
         let channels = stmt
-            .query_map([], |row| Ok(AlertChannel {
-                id: row.get(0)?,
-                channel: row.get(1)?,
-                config: row.get(2)?,
-                enabled: row.get(3)?,
-                created_at: row.get(4)?,
-            }))?
+            .query_map([], |row| {
+                Ok(AlertChannel {
+                    id: row.get(0)?,
+                    channel: row.get(1)?,
+                    config: row.get(2)?,
+                    enabled: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(channels)
     }
@@ -102,15 +108,17 @@ impl AlertRepo {
              FROM alert_history ORDER BY id DESC LIMIT ?1",
         )?;
         let history = stmt
-            .query_map(params![limit], |row| Ok(AlertHistory {
-                id: row.get(0)?,
-                agent_id: row.get(1)?,
-                run_id: row.get(2)?,
-                alert_type: row.get(3)?,
-                channel: row.get(4)?,
-                message: row.get(5)?,
-                sent_at: row.get(6)?,
-            }))?
+            .query_map(params![limit], |row| {
+                Ok(AlertHistory {
+                    id: row.get(0)?,
+                    agent_id: row.get(1)?,
+                    run_id: row.get(2)?,
+                    alert_type: row.get(3)?,
+                    channel: row.get(4)?,
+                    message: row.get(5)?,
+                    sent_at: row.get(6)?,
+                })
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(history)
     }

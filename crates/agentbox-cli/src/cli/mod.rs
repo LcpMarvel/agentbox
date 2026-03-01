@@ -3,7 +3,11 @@ pub mod commands;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "agentbox", version, about = "PM2 for AI Agents — manage your local AI agents")]
+#[command(
+    name = "agentbox",
+    version,
+    about = "PM2 for AI Agents — manage your local AI agents"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -141,14 +145,35 @@ pub enum DaemonAction {
 
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
-        Commands::Register { name, command, dir, timeout, retry, retry_delay, retry_strategy } => {
-            commands::register::execute(&name, &command, dir.as_deref(), timeout, retry, retry_delay, &retry_strategy).await
+        Commands::Register {
+            name,
+            command,
+            dir,
+            timeout,
+            retry,
+            retry_delay,
+            retry_strategy,
+        } => {
+            commands::register::execute(
+                &name,
+                &command,
+                dir.as_deref(),
+                timeout,
+                retry,
+                retry_delay,
+                &retry_strategy,
+            )
+            .await
         }
         Commands::List => commands::list::execute().await,
         Commands::Run { name } => commands::run::execute(&name).await,
-        Commands::Schedule { name, cron, every, after, manual } => {
-            commands::schedule::execute(&name, cron, every, after, manual).await
-        }
+        Commands::Schedule {
+            name,
+            cron,
+            every,
+            after,
+            manual,
+        } => commands::schedule::execute(&name, cron, every, after, manual).await,
         Commands::Pause { name } => commands::pause::execute(&name).await,
         Commands::Resume { name } => commands::resume::execute(&name).await,
         Commands::Logs { name, all, tail } => {

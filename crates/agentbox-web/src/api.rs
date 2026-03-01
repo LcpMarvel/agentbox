@@ -8,9 +8,8 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::sync::Arc;
 use std::convert::Infallible;
-
+use std::sync::Arc;
 
 struct AppState {
     pool: DbPool,
@@ -76,10 +75,7 @@ async fn list_logs(
     }
 }
 
-async fn list_runs(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<i64>,
-) -> Json<Value> {
+async fn list_runs(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -> Json<Value> {
     let repo = RunRepo::new(state.pool.clone());
     match repo.list_by_agent(id, 50) {
         Ok(runs) => Json(serde_json::to_value(&runs).unwrap()),
@@ -138,10 +134,7 @@ async fn list_alerts(State(state): State<Arc<AppState>>) -> Json<Value> {
 
 // ── Action endpoints ──
 
-async fn trigger_run(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<i64>,
-) -> Json<Value> {
+async fn trigger_run(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -> Json<Value> {
     let agent_repo = AgentRepo::new(state.pool.clone());
     match agent_repo.get_by_id(id) {
         Ok(agent) => {
@@ -162,10 +155,7 @@ async fn trigger_run(
     }
 }
 
-async fn pause_agent(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<i64>,
-) -> Json<Value> {
+async fn pause_agent(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -> Json<Value> {
     let repo = AgentRepo::new(state.pool.clone());
     match repo.update_paused(id, true) {
         Ok(_) => Json(serde_json::json!({"status": "paused"})),
@@ -173,10 +163,7 @@ async fn pause_agent(
     }
 }
 
-async fn resume_agent(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<i64>,
-) -> Json<Value> {
+async fn resume_agent(State(state): State<Arc<AppState>>, Path(id): Path<i64>) -> Json<Value> {
     let repo = AgentRepo::new(state.pool.clone());
     match repo.update_paused(id, false) {
         Ok(_) => Json(serde_json::json!({"status": "resumed"})),

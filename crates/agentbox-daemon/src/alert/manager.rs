@@ -1,7 +1,7 @@
 use agentbox_db::connection::DbPool;
 use agentbox_db::repo::AlertRepo;
 use std::collections::HashMap;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone)]
 pub enum AlertType {
@@ -65,11 +65,14 @@ impl AlertManager {
         );
 
         for channel in &channels {
-            let config: HashMap<String, String> = serde_json::from_str(&channel.config)
-                .unwrap_or_default();
+            let config: HashMap<String, String> =
+                serde_json::from_str(&channel.config).unwrap_or_default();
 
             let result = match channel.channel.as_str() {
-                "webhook" => self.send_webhook(&config, &message, agent_name, &alert_type).await,
+                "webhook" => {
+                    self.send_webhook(&config, &message, agent_name, &alert_type)
+                        .await
+                }
                 "telegram" => self.send_telegram(&config, &message).await,
                 "macos" => self.send_macos_notification(&message, agent_name).await,
                 other => {
@@ -82,7 +85,11 @@ impl AlertManager {
                 Ok(()) => {
                     info!("Alert sent via {}: {}", channel.channel, message);
                     let _ = alert_repo.record_alert(
-                        agent_id, run_id, alert_type.as_str(), &channel.channel, &message,
+                        agent_id,
+                        run_id,
+                        alert_type.as_str(),
+                        &channel.channel,
+                        &message,
                     );
                 }
                 Err(e) => {
@@ -109,7 +116,8 @@ impl AlertManager {
         });
 
         let client = reqwest::Client::new();
-        let resp = client.post(url)
+        let resp = client
+            .post(url)
             .json(&payload)
             .timeout(std::time::Duration::from_secs(10))
             .send()
@@ -127,8 +135,12 @@ impl AlertManager {
         config: &HashMap<String, String>,
         message: &str,
     ) -> Result<(), String> {
-        let token = config.get("bot_token").ok_or("telegram bot_token not configured")?;
-        let chat_id = config.get("chat_id").ok_or("telegram chat_id not configured")?;
+        let token = config
+            .get("bot_token")
+            .ok_or("telegram bot_token not configured")?;
+        let chat_id = config
+            .get("chat_id")
+            .ok_or("telegram chat_id not configured")?;
 
         let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
         let payload = serde_json::json!({
@@ -138,7 +150,8 @@ impl AlertManager {
         });
 
         let client = reqwest::Client::new();
-        let resp = client.post(&url)
+        let resp = client
+            .post(&url)
             .json(&payload)
             .timeout(std::time::Duration::from_secs(10))
             .send()
@@ -151,11 +164,7 @@ impl AlertManager {
         Ok(())
     }
 
-    async fn send_macos_notification(
-        &self,
-        message: &str,
-        agent_name: &str,
-    ) -> Result<(), String> {
+    async fn send_macos_notification(&self, message: &str, agent_name: &str) -> Result<(), String> {
         let script = format!(
             r#"display notification "{}" with title "AgentBox" subtitle "{}""#,
             message.replace('"', r#"\""#),

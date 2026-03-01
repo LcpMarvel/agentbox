@@ -1,21 +1,31 @@
-use agentbox_db::repo::{AgentRepo, LogRepo, RunRepo, ConfigRepo};
 use crate::alert::AlertManager;
+use agentbox_db::repo::{AgentRepo, ConfigRepo, LogRepo, RunRepo};
 use chrono::{DateTime, Utc};
 use cron::Schedule;
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::str::FromStr;
 use tokio::sync::mpsc;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone)]
 pub enum SchedulerEvent {
     Reload,
-    RunNow { agent_id: i64, trigger: String },
-    Pause { agent_id: i64 },
-    Resume { agent_id: i64 },
+    RunNow {
+        agent_id: i64,
+        trigger: String,
+    },
+    Pause {
+        agent_id: i64,
+    },
+    Resume {
+        agent_id: i64,
+    },
     /// An agent completed (success or failure) — check dependency chain
-    AgentCompleted { agent_id: i64, success: bool },
+    AgentCompleted {
+        agent_id: i64,
+        success: bool,
+    },
     Shutdown,
 }
 
@@ -66,7 +76,8 @@ impl SchedulerEngine {
     }
 
     fn max_concurrent(&self) -> usize {
-        self.config_repo.get("max_concurrent")
+        self.config_repo
+            .get("max_concurrent")
             .ok()
             .flatten()
             .and_then(|v| v.parse::<usize>().ok())
@@ -74,7 +85,8 @@ impl SchedulerEngine {
     }
 
     fn running_count(&self) -> usize {
-        self.agent_repo.list_all()
+        self.agent_repo
+            .list_all()
             .map(|agents| agents.iter().filter(|a| a.status == "running").count())
             .unwrap_or(0)
     }
@@ -92,7 +104,9 @@ impl SchedulerEngine {
                 if next.next_run <= now {
                     std::time::Duration::from_millis(0)
                 } else {
-                    (next.next_run - now).to_std().unwrap_or(std::time::Duration::from_secs(60))
+                    (next.next_run - now)
+                        .to_std()
+                        .unwrap_or(std::time::Duration::from_secs(60))
                 }
             } else {
                 std::time::Duration::from_secs(60)
@@ -224,7 +238,10 @@ impl SchedulerEngine {
             self.execute_agent(agent_id, "catchup").await;
             heap.retain(|j| j.agent_id != agent_id);
             if let Some(next) = self.compute_next_run(agent_id) {
-                heap.push(ScheduledJob { agent_id, next_run: next });
+                heap.push(ScheduledJob {
+                    agent_id,
+                    next_run: next,
+                });
             }
         }
     }
@@ -282,12 +299,18 @@ impl SchedulerEngine {
         let dependents = match self.agent_repo.list_dependents(completed_agent_id) {
             Ok(deps) => deps,
             Err(e) => {
-                error!("Failed to find dependents of agent {}: {}", completed_agent_id, e);
+                error!(
+                    "Failed to find dependents of agent {}: {}",
+                    completed_agent_id, e
+                );
                 return;
             }
         };
         for dep in dependents {
-            info!("Triggering dependent agent '{}' (after agent {})", dep.name, completed_agent_id);
+            info!(
+                "Triggering dependent agent '{}' (after agent {})",
+                dep.name, completed_agent_id
+            );
             self.execute_agent(dep.id, "after").await;
         }
     }
@@ -314,9 +337,14 @@ impl SchedulerEngine {
         info!("Executing agent '{}' (trigger={})", agent.name, trigger);
 
         let result = crate::executor::run_agent(
-            &agent, trigger, &self.run_repo, &self.log_repo, &self.agent_repo,
+            &agent,
+            trigger,
+            &self.run_repo,
+            &self.log_repo,
+            &self.agent_repo,
             Some(&self.alert_manager),
-        ).await;
+        )
+        .await;
 
         let success = result.is_ok();
 
@@ -326,9 +354,9 @@ impl SchedulerEngine {
         }
 
         // Notify for dependency chain
-        let _ = self.event_tx.send(SchedulerEvent::AgentCompleted {
-            agent_id,
-            success,
-        }).await;
+        let _ = self
+            .event_tx
+            .send(SchedulerEvent::AgentCompleted { agent_id, success })
+            .await;
     }
 }

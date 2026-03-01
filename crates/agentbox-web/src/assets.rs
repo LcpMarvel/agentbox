@@ -33,7 +33,9 @@ pub async fn serve_static(req: Request<Body>) -> impl IntoResponse {
                 None => Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .header(header::CONTENT_TYPE, "text/plain")
-                    .body(Body::from("Dashboard not built. Run: cd dashboard && npm run build"))
+                    .body(Body::from(
+                        "Dashboard not built. Run: cd dashboard && npm run build",
+                    ))
                     .unwrap(),
             }
         }

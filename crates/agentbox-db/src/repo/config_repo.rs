@@ -43,7 +43,9 @@ impl ConfigRepo {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare("SELECT key, value FROM config ORDER BY key")?;
         let items = stmt
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(items)
     }

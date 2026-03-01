@@ -60,11 +60,9 @@ fn text_contents(uri: &str, mime: &str, text: String) -> ResourceContents {
 
 /// Read a specific resource by URI.
 pub async fn read_resource(uri: &str) -> Result<ReadResourceResult, rmcp::ErrorData> {
-    let path = uri
-        .strip_prefix("agentbox://")
-        .ok_or_else(|| {
-            rmcp::ErrorData::invalid_params("Invalid URI scheme, expected agentbox://", None)
-        })?;
+    let path = uri.strip_prefix("agentbox://").ok_or_else(|| {
+        rmcp::ErrorData::invalid_params("Invalid URI scheme, expected agentbox://", None)
+    })?;
 
     let parts: Vec<&str> = path.split('/').collect();
 

@@ -12,10 +12,7 @@ pub struct IpcClient;
 
 impl IpcClient {
     /// Send an IPC request to the daemon and return the response.
-    pub async fn call(
-        method: &str,
-        params: serde_json::Value,
-    ) -> anyhow::Result<IpcResponse> {
+    pub async fn call(method: &str, params: serde_json::Value) -> anyhow::Result<IpcResponse> {
         let socket_path = config::socket_path();
 
         if !socket_path.exists() {

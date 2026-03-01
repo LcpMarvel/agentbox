@@ -1,6 +1,6 @@
+use crate::alert::{AlertManager, AlertType};
 use agentbox_db::models::Agent;
 use agentbox_db::repo::{AgentRepo, LogRepo, RunRepo};
-use crate::alert::{AlertManager, AlertType};
 use chrono::Utc;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -18,9 +18,11 @@ pub async fn run_agent(
     let was_error = agent.status == "error";
 
     // Update agent status
-    agent_repo.update_status(agent.id, "running")
+    agent_repo
+        .update_status(agent.id, "running")
         .map_err(|e| anyhow::anyhow!("{}", e))?;
-    agent_repo.update_last_run(agent.id, &Utc::now().to_rfc3339())
+    agent_repo
+        .update_last_run(agent.id, &Utc::now().to_rfc3339())
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     let result = execute_with_retries(agent, trigger, run_repo, agent_repo).await;
@@ -31,9 +33,13 @@ pub async fn run_agent(
             if was_error {
                 if let Some(am) = alert_manager {
                     am.send_alert(
-                        &agent.name, agent.id, None,
-                        AlertType::Recovery, "Agent recovered and completed successfully",
-                    ).await;
+                        &agent.name,
+                        agent.id,
+                        None,
+                        AlertType::Recovery,
+                        "Agent recovered and completed successfully",
+                    )
+                    .await;
                 }
             }
         }
@@ -41,11 +47,18 @@ pub async fn run_agent(
             let err_msg = e.to_string();
             if let Some(am) = alert_manager {
                 let (atype, detail) = if err_msg.contains("timed out") {
-                    (AlertType::Timeout, format!("Process timed out after {}s", agent.timeout_secs.unwrap_or(0)))
+                    (
+                        AlertType::Timeout,
+                        format!(
+                            "Process timed out after {}s",
+                            agent.timeout_secs.unwrap_or(0)
+                        ),
+                    )
                 } else {
                     (AlertType::Failure, format!("Failed: {}", err_msg))
                 };
-                am.send_alert(&agent.name, agent.id, None, atype, &detail).await;
+                am.send_alert(&agent.name, agent.id, None, atype, &detail)
+                    .await;
             }
         }
     }
@@ -73,11 +86,17 @@ async fn execute_with_retries(
                     let delay = compute_retry_delay(agent, attempt);
                     tracing::info!(
                         "Agent '{}' failed (attempt {}/{}), retrying in {}s",
-                        agent.name, attempt + 1, max_attempts, delay
+                        agent.name,
+                        attempt + 1,
+                        max_attempts,
+                        delay
                     );
                     tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
                 } else {
-                    return Err(anyhow::anyhow!("Agent failed after {} attempts", max_attempts));
+                    return Err(anyhow::anyhow!(
+                        "Agent failed after {} attempts",
+                        max_attempts
+                    ));
                 }
             }
             Err(e) => return Err(e), // unrecoverable error (timeout, spawn fail)
@@ -112,7 +131,9 @@ async fn execute_once(
         cmd.current_dir(dir);
     }
 
-    if let Ok(env_map) = serde_json::from_str::<std::collections::HashMap<String, String>>(&agent.env_vars) {
+    if let Ok(env_map) =
+        serde_json::from_str::<std::collections::HashMap<String, String>>(&agent.env_vars)
+    {
         for (k, v) in env_map {
             cmd.env(k, v);
         }
@@ -130,7 +151,8 @@ async fn execute_once(
     let pid = child.id().map(|p| p as i64);
 
     // Record the run
-    let run = run_repo.create(agent.id, trigger, pid)
+    let run = run_repo
+        .create(agent.id, trigger, pid)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     if retry_count > 0 {
         // Update retry_count on the run record
@@ -140,7 +162,8 @@ async fn execute_once(
         conn.execute(
             "UPDATE runs SET retry_count = ?1 WHERE id = ?2",
             rusqlite::params![retry_count, run.id],
-        ).map_err(|e| anyhow::anyhow!("{}", e))?;
+        )
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     }
 
     let run_id = run.id;
@@ -217,23 +240,29 @@ async fn execute_once(
         Ok(status) => {
             let exit_code = status.code();
             if status.success() {
-                run_repo.finish(run_id, "success", exit_code, None, duration_ms)
+                run_repo
+                    .finish(run_id, "success", exit_code, None, duration_ms)
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
-                agent_repo.update_status(agent.id, "idle")
+                agent_repo
+                    .update_status(agent.id, "idle")
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
                 Ok(true)
             } else {
-                run_repo.finish(run_id, "failed", exit_code, None, duration_ms)
+                run_repo
+                    .finish(run_id, "failed", exit_code, None, duration_ms)
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
-                agent_repo.update_status(agent.id, "error")
+                agent_repo
+                    .update_status(agent.id, "error")
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
                 Ok(false)
             }
         }
         Err(e) => {
-            run_repo.finish(run_id, "failed", None, Some(&e.to_string()), duration_ms)
+            run_repo
+                .finish(run_id, "failed", None, Some(&e.to_string()), duration_ms)
                 .map_err(|e| anyhow::anyhow!("{}", e))?;
-            agent_repo.update_status(agent.id, "error")
+            agent_repo
+                .update_status(agent.id, "error")
                 .map_err(|e| anyhow::anyhow!("{}", e))?;
             Err(anyhow::anyhow!("{}", e))
         }

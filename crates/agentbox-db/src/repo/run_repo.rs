@@ -100,7 +100,10 @@ impl RunRepo {
         Ok(())
     }
 
-    pub fn get_running_by_agent(&self, agent_id: i64) -> Result<Option<Run>, Box<dyn std::error::Error>> {
+    pub fn get_running_by_agent(
+        &self,
+        agent_id: i64,
+    ) -> Result<Option<Run>, Box<dyn std::error::Error>> {
         let conn = self.pool.get()?;
         let result = conn.query_row(
             "SELECT id, agent_id, status, trigger_type, started_at, ended_at,

@@ -1,10 +1,14 @@
 use super::ipc_call;
 use agentbox_db::models::Run;
 use colored::Colorize;
-use comfy_table::{Table, ContentArrangement, presets::UTF8_FULL_CONDENSED};
+use comfy_table::{presets::UTF8_FULL_CONDENSED, ContentArrangement, Table};
 
 pub async fn execute(name: &str, limit: i64) -> anyhow::Result<()> {
-    let resp = ipc_call("runs.history", serde_json::json!({"name": name, "limit": limit})).await?;
+    let resp = ipc_call(
+        "runs.history",
+        serde_json::json!({"name": name, "limit": limit}),
+    )
+    .await?;
 
     if let Some(result) = resp.result {
         let runs: Vec<Run> = serde_json::from_value(result)?;
@@ -18,7 +22,14 @@ pub async fn execute(name: &str, limit: i64) -> anyhow::Result<()> {
         table
             .load_preset(UTF8_FULL_CONDENSED)
             .set_content_arrangement(ContentArrangement::Dynamic)
-            .set_header(vec!["Run ID", "Status", "Trigger", "Started", "Duration", "Exit Code"]);
+            .set_header(vec![
+                "Run ID",
+                "Status",
+                "Trigger",
+                "Started",
+                "Duration",
+                "Exit Code",
+            ]);
 
         for run in &runs {
             let status = match run.status.as_str() {
@@ -28,10 +39,12 @@ pub async fn execute(name: &str, limit: i64) -> anyhow::Result<()> {
                 "timeout" => "⏱ timeout".to_string(),
                 other => other.to_string(),
             };
-            let duration = run.duration_ms
+            let duration = run
+                .duration_ms
                 .map(|ms| format!("{:.1}s", ms as f64 / 1000.0))
                 .unwrap_or_else(|| "—".to_string());
-            let exit = run.exit_code
+            let exit = run
+                .exit_code
                 .map(|c| c.to_string())
                 .unwrap_or_else(|| "—".to_string());
 

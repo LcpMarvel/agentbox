@@ -1,12 +1,12 @@
+use crate::scheduler::SchedulerEvent;
 use agentbox_core::config;
 use agentbox_core::types::{IpcRequest, IpcResponse};
 use agentbox_db::connection::DbPool;
 use agentbox_db::repo::{AgentRepo, AlertRepo, ConfigRepo, LogRepo, RunRepo};
-use crate::scheduler::SchedulerEvent;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::sync::mpsc;
-use tracing::{info, error};
+use tracing::{error, info};
 
 pub async fn start_ipc_server(
     pool: DbPool,
@@ -78,15 +78,24 @@ async fn handle_request(
 
     match req.method.as_str() {
         "agent.register" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let command = req.params.get("command").and_then(|v| v.as_str()).unwrap_or("");
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let command = req
+                .params
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let working_dir = req.params.get("working_dir").and_then(|v| v.as_str());
 
             if name.is_empty() || command.is_empty() {
                 return IpcResponse::error(req.id, -32602, "name and command are required".into());
             }
 
-            let reg_result = agent_repo.create(name, command, working_dir, None)
+            let reg_result = agent_repo
+                .create(name, command, working_dir, None)
                 .map(|a| (a.id, a.name.clone()))
                 .map_err(|e| e.to_string());
             match reg_result {
@@ -99,46 +108,81 @@ async fn handle_request(
                             rusqlite::params![timeout, id],
                         );
                     }
-                    if let Some(max_retries) = req.params.get("max_retries").and_then(|v| v.as_i64()) {
-                        let retry_delay = req.params.get("retry_delay_secs").and_then(|v| v.as_i64()).unwrap_or(30);
-                        let retry_strategy = req.params.get("retry_strategy").and_then(|v| v.as_str()).unwrap_or("fixed");
-                        let _ = agent_repo.update_retry_config(id, max_retries, retry_delay, retry_strategy);
+                    if let Some(max_retries) =
+                        req.params.get("max_retries").and_then(|v| v.as_i64())
+                    {
+                        let retry_delay = req
+                            .params
+                            .get("retry_delay_secs")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(30);
+                        let retry_strategy = req
+                            .params
+                            .get("retry_strategy")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("fixed");
+                        let _ = agent_repo.update_retry_config(
+                            id,
+                            max_retries,
+                            retry_delay,
+                            retry_strategy,
+                        );
                     }
                     let _ = sched_tx.send(SchedulerEvent::Reload).await;
-                    IpcResponse::success(req.id, serde_json::json!({
-                        "id": id,
-                        "name": agent_name,
-                    }))
+                    IpcResponse::success(
+                        req.id,
+                        serde_json::json!({
+                            "id": id,
+                            "name": agent_name,
+                        }),
+                    )
                 }
                 Err(e) => IpcResponse::error(req.id, -32000, e),
             }
         }
 
-        "agent.list" => {
-            match agent_repo.list_all() {
-                Ok(agents) => IpcResponse::success(req.id, serde_json::to_value(&agents).unwrap()),
-                Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
-            }
-        }
+        "agent.list" => match agent_repo.list_all() {
+            Ok(agents) => IpcResponse::success(req.id, serde_json::to_value(&agents).unwrap()),
+            Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
+        },
 
         "agent.run" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let agent_id_result = agent_repo.get_by_name(name).map(|a| a.id).map_err(|e| e.to_string());
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let agent_id_result = agent_repo
+                .get_by_name(name)
+                .map(|a| a.id)
+                .map_err(|e| e.to_string());
             match agent_id_result {
                 Ok(agent_id) => {
-                    let _ = sched_tx.send(SchedulerEvent::RunNow {
-                        agent_id,
-                        trigger: "manual".to_string(),
-                    }).await;
-                    IpcResponse::success(req.id, serde_json::json!({"status": "triggered", "agent_id": agent_id}))
+                    let _ = sched_tx
+                        .send(SchedulerEvent::RunNow {
+                            agent_id,
+                            trigger: "manual".to_string(),
+                        })
+                        .await;
+                    IpcResponse::success(
+                        req.id,
+                        serde_json::json!({"status": "triggered", "agent_id": agent_id}),
+                    )
                 }
                 Err(e) => IpcResponse::error(req.id, -32000, format!("Agent not found: {}", e)),
             }
         }
 
         "agent.pause" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let agent_id_result = agent_repo.get_by_name(name).map(|a| a.id).map_err(|e| e.to_string());
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let agent_id_result = agent_repo
+                .get_by_name(name)
+                .map(|a| a.id)
+                .map_err(|e| e.to_string());
             match agent_id_result {
                 Ok(agent_id) => {
                     let _ = sched_tx.send(SchedulerEvent::Pause { agent_id }).await;
@@ -149,8 +193,15 @@ async fn handle_request(
         }
 
         "agent.resume" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let agent_id_result = agent_repo.get_by_name(name).map(|a| a.id).map_err(|e| e.to_string());
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let agent_id_result = agent_repo
+                .get_by_name(name)
+                .map(|a| a.id)
+                .map_err(|e| e.to_string());
             match agent_id_result {
                 Ok(agent_id) => {
                     let _ = sched_tx.send(SchedulerEvent::Resume { agent_id }).await;
@@ -161,8 +212,13 @@ async fn handle_request(
         }
 
         "agent.remove" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let delete_result = agent_repo.get_by_name(name)
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let delete_result = agent_repo
+                .get_by_name(name)
                 .and_then(|a| agent_repo.delete(a.id))
                 .map_err(|e| e.to_string());
             match delete_result {
@@ -175,8 +231,16 @@ async fn handle_request(
         }
 
         "agent.schedule" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let schedule_type = req.params.get("schedule_type").and_then(|v| v.as_str()).unwrap_or("manual");
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let schedule_type = req
+                .params
+                .get("schedule_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("manual");
             let cron_expr = req.params.get("cron_expr").and_then(|v| v.as_str());
             let interval_secs = req.params.get("interval_secs").and_then(|v| v.as_i64());
             let after_agent_name = req.params.get("after_agent").and_then(|v| v.as_str());
@@ -185,14 +249,30 @@ async fn handle_request(
             let after_agent_id = if let Some(after_name) = after_agent_name {
                 match agent_repo.get_by_name(after_name) {
                     Ok(dep) => Some(dep.id),
-                    Err(e) => return IpcResponse::error(req.id, -32000, format!("After-agent '{}' not found: {}", after_name, e)),
+                    Err(e) => {
+                        return IpcResponse::error(
+                            req.id,
+                            -32000,
+                            format!("After-agent '{}' not found: {}", after_name, e),
+                        )
+                    }
                 }
             } else {
                 None
             };
 
-            let sched_result = agent_repo.get_by_name(name)
-                .and_then(|a| agent_repo.update_schedule(a.id, schedule_type, cron_expr, interval_secs, after_agent_id, None))
+            let sched_result = agent_repo
+                .get_by_name(name)
+                .and_then(|a| {
+                    agent_repo.update_schedule(
+                        a.id,
+                        schedule_type,
+                        cron_expr,
+                        interval_secs,
+                        after_agent_id,
+                        None,
+                    )
+                })
                 .map_err(|e| e.to_string());
             match sched_result {
                 Ok(_) => {
@@ -204,9 +284,21 @@ async fn handle_request(
         }
 
         "logs.tail" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let limit = req.params.get("limit").and_then(|v| v.as_i64()).unwrap_or(50);
-            let all = req.params.get("all").and_then(|v| v.as_bool()).unwrap_or(false);
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let limit = req
+                .params
+                .get("limit")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(50);
+            let all = req
+                .params
+                .get("all")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
 
             if all {
                 match log_repo.list_all_recent(limit) {
@@ -215,37 +307,46 @@ async fn handle_request(
                 }
             } else {
                 match agent_repo.get_by_name(name) {
-                    Ok(agent) => {
-                        match log_repo.list_by_agent(agent.id, limit) {
-                            Ok(logs) => IpcResponse::success(req.id, serde_json::to_value(&logs).unwrap()),
-                            Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
+                    Ok(agent) => match log_repo.list_by_agent(agent.id, limit) {
+                        Ok(logs) => {
+                            IpcResponse::success(req.id, serde_json::to_value(&logs).unwrap())
                         }
-                    }
+                        Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
+                    },
                     Err(e) => IpcResponse::error(req.id, -32000, format!("Agent not found: {}", e)),
                 }
             }
         }
 
         "runs.history" => {
-            let name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let limit = req.params.get("limit").and_then(|v| v.as_i64()).unwrap_or(20);
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let limit = req
+                .params
+                .get("limit")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(20);
 
             match agent_repo.get_by_name(name) {
-                Ok(agent) => {
-                    match run_repo.list_by_agent(agent.id, limit) {
-                        Ok(runs) => IpcResponse::success(req.id, serde_json::to_value(&runs).unwrap()),
-                        Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
-                    }
-                }
+                Ok(agent) => match run_repo.list_by_agent(agent.id, limit) {
+                    Ok(runs) => IpcResponse::success(req.id, serde_json::to_value(&runs).unwrap()),
+                    Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
+                },
                 Err(e) => IpcResponse::error(req.id, -32000, format!("Agent not found: {}", e)),
             }
         }
 
         // ── Alert & Config management ──
-
         "config.set" => {
             let key = req.params.get("key").and_then(|v| v.as_str()).unwrap_or("");
-            let value = req.params.get("value").and_then(|v| v.as_str()).unwrap_or("");
+            let value = req
+                .params
+                .get("value")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             if key.is_empty() {
                 return IpcResponse::error(req.id, -32602, "key is required".into());
             }
@@ -258,15 +359,27 @@ async fn handle_request(
         "config.get" => {
             let key = req.params.get("key").and_then(|v| v.as_str()).unwrap_or("");
             match config_repo.get(key) {
-                Ok(Some(val)) => IpcResponse::success(req.id, serde_json::json!({"key": key, "value": val})),
-                Ok(None) => IpcResponse::error(req.id, -32000, format!("Config key '{}' not found", key)),
+                Ok(Some(val)) => {
+                    IpcResponse::success(req.id, serde_json::json!({"key": key, "value": val}))
+                }
+                Ok(None) => {
+                    IpcResponse::error(req.id, -32000, format!("Config key '{}' not found", key))
+                }
                 Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
             }
         }
 
         "alert.add" => {
-            let channel = req.params.get("channel").and_then(|v| v.as_str()).unwrap_or("");
-            let config_val = req.params.get("config").cloned().unwrap_or(serde_json::json!({}));
+            let channel = req
+                .params
+                .get("channel")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let config_val = req
+                .params
+                .get("config")
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
             let config_str = config_val.to_string();
 
             if channel.is_empty() {
@@ -278,12 +391,10 @@ async fn handle_request(
             }
         }
 
-        "alert.list" => {
-            match alert_repo.list_all() {
-                Ok(channels) => IpcResponse::success(req.id, serde_json::to_value(&channels).unwrap()),
-                Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
-            }
-        }
+        "alert.list" => match alert_repo.list_all() {
+            Ok(channels) => IpcResponse::success(req.id, serde_json::to_value(&channels).unwrap()),
+            Err(e) => IpcResponse::error(req.id, -32000, e.to_string()),
+        },
 
         "alert.remove" => {
             let id = req.params.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -293,12 +404,13 @@ async fn handle_request(
             }
         }
 
-        "daemon.status" => {
-            IpcResponse::success(req.id, serde_json::json!({
+        "daemon.status" => IpcResponse::success(
+            req.id,
+            serde_json::json!({
                 "status": "running",
                 "pid": std::process::id(),
-            }))
-        }
+            }),
+        ),
 
         "daemon.stop" => {
             let _ = sched_tx.send(SchedulerEvent::Shutdown).await;

@@ -105,7 +105,9 @@ impl AgentBoxMcpServer {
         }
     }
 
-    #[tool(description = "Pause an agent's automatic schedule. The agent will not run until resumed. Manual runs via run_agent are still possible.")]
+    #[tool(
+        description = "Pause an agent's automatic schedule. The agent will not run until resumed. Manual runs via run_agent are still possible."
+    )]
     async fn pause_agent(
         &self,
         params: Parameters<AgentNameParams>,

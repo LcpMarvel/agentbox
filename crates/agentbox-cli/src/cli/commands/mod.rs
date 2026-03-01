@@ -1,21 +1,21 @@
-pub mod register;
-pub mod list;
-pub mod run;
-pub mod schedule;
-pub mod pause;
-pub mod resume;
-pub mod logs;
-pub mod history;
-pub mod remove;
+pub mod config_cmd;
 pub mod daemon;
 pub mod dashboard;
-pub mod config_cmd;
+pub mod history;
+pub mod list;
+pub mod logs;
+pub mod pause;
+pub mod register;
+pub mod remove;
+pub mod resume;
+pub mod run;
+pub mod schedule;
 
 use agentbox_core::config;
 use agentbox_core::types::{IpcRequest, IpcResponse};
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -39,8 +39,12 @@ pub async fn ipc_call(method: &str, params: serde_json::Value) -> anyhow::Result
         }
     }
 
-    let stream = UnixStream::connect(&socket_path).await
-        .map_err(|e| anyhow::anyhow!("Cannot connect to daemon: {}. Try 'agentbox daemon start'.", e))?;
+    let stream = UnixStream::connect(&socket_path).await.map_err(|e| {
+        anyhow::anyhow!(
+            "Cannot connect to daemon: {}. Try 'agentbox daemon start'.",
+            e
+        )
+    })?;
 
     let (reader, mut writer) = stream.into_split();
 

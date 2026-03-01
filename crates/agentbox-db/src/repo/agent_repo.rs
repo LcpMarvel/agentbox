@@ -2,7 +2,8 @@ use crate::connection::DbPool;
 use crate::models::Agent;
 use rusqlite::params;
 
-const AGENT_SELECT: &str = "SELECT id, name, command, working_dir, env_vars, schedule_type, cron_expr,
+const AGENT_SELECT: &str =
+    "SELECT id, name, command, working_dir, env_vars, schedule_type, cron_expr,
         interval_secs, after_agent_id, status, paused, timeout_secs, max_retries,
         created_at, last_run_at, next_run_at, retry_delay_secs, retry_strategy
  FROM agents";
@@ -81,7 +82,10 @@ impl AgentRepo {
 
     pub fn list_scheduled(&self) -> Result<Vec<Agent>, Box<dyn std::error::Error>> {
         let conn = self.pool.get()?;
-        let sql = format!("{} WHERE schedule_type != 'manual' AND paused = 0 ORDER BY next_run_at", AGENT_SELECT);
+        let sql = format!(
+            "{} WHERE schedule_type != 'manual' AND paused = 0 ORDER BY next_run_at",
+            AGENT_SELECT
+        );
         let mut stmt = conn.prepare(&sql)?;
         let agents = stmt
             .query_map([], row_to_agent)?
@@ -89,9 +93,15 @@ impl AgentRepo {
         Ok(agents)
     }
 
-    pub fn list_dependents(&self, after_agent_id: i64) -> Result<Vec<Agent>, Box<dyn std::error::Error>> {
+    pub fn list_dependents(
+        &self,
+        after_agent_id: i64,
+    ) -> Result<Vec<Agent>, Box<dyn std::error::Error>> {
         let conn = self.pool.get()?;
-        let sql = format!("{} WHERE schedule_type = 'after' AND after_agent_id = ?1 AND paused = 0", AGENT_SELECT);
+        let sql = format!(
+            "{} WHERE schedule_type = 'after' AND after_agent_id = ?1 AND paused = 0",
+            AGENT_SELECT
+        );
         let mut stmt = conn.prepare(&sql)?;
         let agents = stmt
             .query_map(params![after_agent_id], row_to_agent)?
@@ -112,7 +122,14 @@ impl AgentRepo {
         conn.execute(
             "UPDATE agents SET schedule_type = ?1, cron_expr = ?2, interval_secs = ?3,
              after_agent_id = ?4, next_run_at = ?5 WHERE id = ?6",
-            params![schedule_type, cron_expr, interval_secs, after_agent_id, next_run_at, id],
+            params![
+                schedule_type,
+                cron_expr,
+                interval_secs,
+                after_agent_id,
+                next_run_at,
+                id
+            ],
         )?;
         Ok(())
     }
@@ -135,7 +152,11 @@ impl AgentRepo {
         Ok(())
     }
 
-    pub fn update_last_run(&self, id: i64, last_run_at: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update_last_run(
+        &self,
+        id: i64,
+        last_run_at: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self.pool.get()?;
         conn.execute(
             "UPDATE agents SET last_run_at = ?1 WHERE id = ?2",
@@ -144,7 +165,11 @@ impl AgentRepo {
         Ok(())
     }
 
-    pub fn update_next_run(&self, id: i64, next_run_at: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update_next_run(
+        &self,
+        id: i64,
+        next_run_at: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self.pool.get()?;
         conn.execute(
             "UPDATE agents SET next_run_at = ?1 WHERE id = ?2",

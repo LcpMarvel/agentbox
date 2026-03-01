@@ -26,7 +26,12 @@ pub async fn execute(name: Option<&str>, all: bool, tail: i64) -> anyhow::Result
                 "system" => "SYS".yellow().to_string(),
                 _ => "OUT".normal().to_string(),
             };
-            println!("{} [{}] {}", log.created_at.dimmed(), level_str, log.message);
+            println!(
+                "{} [{}] {}",
+                log.created_at.dimmed(),
+                level_str,
+                log.message
+            );
         }
     } else if let Some(error) = resp.error {
         eprintln!("{} {}", "✗".red(), error.message);

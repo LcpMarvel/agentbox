@@ -67,18 +67,19 @@ fn parse_interval(s: &str) -> anyhow::Result<i64> {
     }
 
     let (num_str, unit) = if s.ends_with('s') {
-        (&s[..s.len()-1], "s")
+        (&s[..s.len() - 1], "s")
     } else if s.ends_with('m') {
-        (&s[..s.len()-1], "m")
+        (&s[..s.len() - 1], "m")
     } else if s.ends_with('h') {
-        (&s[..s.len()-1], "h")
+        (&s[..s.len() - 1], "h")
     } else if s.ends_with('d') {
-        (&s[..s.len()-1], "d")
+        (&s[..s.len() - 1], "d")
     } else {
         (s, "s") // default to seconds
     };
 
-    let num: i64 = num_str.parse()
+    let num: i64 = num_str
+        .parse()
         .map_err(|_| anyhow::anyhow!("Invalid interval number: {}", num_str))?;
 
     Ok(match unit {

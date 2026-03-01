@@ -1,7 +1,9 @@
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 
-pub fn run_migrations(pool: &Pool<SqliteConnectionManager>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_migrations(
+    pool: &Pool<SqliteConnectionManager>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let conn = pool.get()?;
 
     conn.execute_batch(

@@ -5,7 +5,10 @@ use std::process::Command;
 
 pub async fn start(foreground: bool) -> anyhow::Result<()> {
     if daemon::is_daemon_running() {
-        println!("Daemon is already running (pid={})", daemon::read_pid_file().unwrap_or(0));
+        println!(
+            "Daemon is already running (pid={})",
+            daemon::read_pid_file().unwrap_or(0)
+        );
         return Ok(());
     }
 
@@ -115,7 +118,7 @@ pub async fn install() -> anyhow::Result<()> {
 
     let log_path = config::daemon_log_path();
     let plist_content = format!(
-r#"<?xml version="1.0" encoding="UTF-8"?>
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -158,7 +161,11 @@ r#"<?xml version="1.0" encoding="UTF-8"?>
         println!("  AgentBox daemon will auto-start on login");
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("{} Failed to load LaunchAgent: {}", "✗".red(), stderr.trim());
+        eprintln!(
+            "{} Failed to load LaunchAgent: {}",
+            "✗".red(),
+            stderr.trim()
+        );
     }
 
     Ok(())
@@ -181,7 +188,11 @@ pub async fn uninstall() -> anyhow::Result<()> {
         println!("{} LaunchAgent uninstalled", "✓".green());
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("{} Failed to unload LaunchAgent: {}", "✗".red(), stderr.trim());
+        eprintln!(
+            "{} Failed to unload LaunchAgent: {}",
+            "✗".red(),
+            stderr.trim()
+        );
     }
 
     Ok(())

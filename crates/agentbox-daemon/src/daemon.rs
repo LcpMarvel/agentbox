@@ -20,7 +20,10 @@ pub fn read_pid_file() -> Option<u32> {
         return None;
     }
     let mut contents = String::new();
-    fs::File::open(&path).ok()?.read_to_string(&mut contents).ok()?;
+    fs::File::open(&path)
+        .ok()?
+        .read_to_string(&mut contents)
+        .ok()?;
     contents.trim().parse().ok()
 }
 
@@ -33,9 +36,7 @@ pub fn remove_pid_file() {
 /// Check if daemon is running by reading PID file and checking process.
 pub fn is_daemon_running() -> bool {
     if let Some(pid) = read_pid_file() {
-        unsafe {
-            libc::kill(pid as i32, 0) == 0
-        }
+        unsafe { libc::kill(pid as i32, 0) == 0 }
     } else {
         false
     }
