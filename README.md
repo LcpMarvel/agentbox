@@ -363,21 +363,30 @@ The daemon embeds a web server, listening on `localhost:9800` by default.
 
 ## Development
 
+This project uses [just](https://github.com/casey/just) as a command runner. Install with `cargo install just` or `brew install just`.
+
 ```bash
+# First-time setup (git hooks + dashboard deps)
+just setup
+
+# Run all CI checks (fmt + clippy + test + dashboard build)
+just check
+
+# Individual checks
+just fmt          # Format check
+just fmt-fix      # Auto-fix formatting
+just clippy       # Lint
+just test         # Run tests
+
 # Build
-cargo build --workspace
+just build        # Dev build
+just release      # Release build (LTO enabled, smaller binary)
 
-# Run tests
-cargo test --workspace
+# Run daemon in foreground (for dev)
+just dev
 
-# Release build (LTO enabled, smaller binary)
-cargo build --release
-
-# Check binary size
-ls -lh target/release/agentbox
-
-# Build frontend dashboard (requires Node.js)
-cd dashboard && npm install && npm run build
+# Clean all build artifacts
+just clean
 ```
 
 ### CI/CD
@@ -386,6 +395,8 @@ The project uses GitHub Actions:
 
 - **CI** (`ci.yml`): Runs `cargo fmt --check`, `cargo clippy`, `cargo test`, and `npm run build` (dashboard) on every push/PR
 - **Release** (`release.yml`): On `v*` tags, cross-compiles for 3 platforms (macOS aarch64/x86_64 + Linux x86_64) and uploads to GitHub Releases
+
+A pre-commit hook (via `.githooks/`) runs `just check` before each commit to catch issues locally. It is set up automatically by `just setup`.
 
 ## License
 

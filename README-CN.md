@@ -363,21 +363,30 @@ dashboard/             # Vue 3 + Vite + UnoCSS 前端，编译后通过 rust-emb
 
 ## 开发
 
+项目使用 [just](https://github.com/casey/just) 作为任务运行器。安装：`cargo install just` 或 `brew install just`。
+
 ```bash
-# 编译
-cargo build --workspace
+# 首次设置（git hooks + 前端依赖）
+just setup
 
-# 运行测试
-cargo test --workspace
+# 运行全部 CI 检查（fmt + clippy + test + dashboard build）
+just check
 
-# Release 编译（开启 LTO，体积更小）
-cargo build --release
+# 单独运行
+just fmt          # 格式检查
+just fmt-fix      # 自动修复格式
+just clippy       # Lint 检查
+just test         # 运行测试
 
-# 查看二进制大小
-ls -lh target/release/agentbox
+# 构建
+just build        # Dev 构建
+just release      # Release 构建（开启 LTO，体积更小）
 
-# 构建前端 Dashboard（需要 Node.js）
-cd dashboard && npm install && npm run build
+# 前台启动守护进程（开发调试）
+just dev
+
+# 清理构建产物
+just clean
 ```
 
 ### CI/CD
@@ -386,6 +395,8 @@ cd dashboard && npm install && npm run build
 
 - **CI** (`ci.yml`): 每次 push/PR 自动运行 `cargo fmt --check`、`cargo clippy`、`cargo test`、`npm run build`（dashboard）
 - **Release** (`release.yml`): 打 `v*` tag 自动交叉编译三平台（macOS aarch64/x86_64 + Linux x86_64），上传到 GitHub Releases
+
+通过 `.githooks/` 配置了 pre-commit hook，每次提交前自动运行 `just check`，本地即可拦截问题。`just setup` 会自动配置。
 
 ## License
 

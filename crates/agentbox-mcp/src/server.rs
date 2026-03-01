@@ -61,6 +61,46 @@ impl AgentBoxMcpServer {
     }
 
     #[tool(
+        description = "Edit an existing agent's command, working directory, timeout, or retry configuration. Provide only the fields you want to change; omitted fields remain unchanged."
+    )]
+    async fn edit_agent(
+        &self,
+        params: Parameters<EditAgentParams>,
+    ) -> Result<CallToolResult, rmcp::ErrorData> {
+        let params = params.0;
+        let mut ipc_params = serde_json::json!({ "name": params.name });
+        let obj = ipc_params.as_object_mut().unwrap();
+
+        if let Some(v) = &params.command {
+            obj.insert("command".into(), serde_json::json!(v));
+        }
+        if let Some(v) = &params.dir {
+            obj.insert("working_dir".into(), serde_json::json!(v));
+        }
+        if let Some(v) = params.timeout {
+            obj.insert("timeout_secs".into(), serde_json::json!(v));
+        }
+        if let Some(v) = params.retry {
+            obj.insert("max_retries".into(), serde_json::json!(v));
+        }
+        if let Some(v) = params.retry_delay {
+            obj.insert("retry_delay_secs".into(), serde_json::json!(v));
+        }
+        if let Some(v) = &params.retry_strategy {
+            obj.insert("retry_strategy".into(), serde_json::json!(v));
+        }
+
+        match IpcClient::call_ok("agent.edit", ipc_params).await {
+            Ok(val) => text_result(format!(
+                "Agent '{}' updated.\n{}",
+                params.name,
+                serde_json::to_string_pretty(&val).unwrap_or_default()
+            )),
+            Err(e) => err_result(format!("Failed to edit agent: {}", e)),
+        }
+    }
+
+    #[tool(
         description = "Manually trigger an agent to run immediately, regardless of its schedule. Returns the run ID."
     )]
     async fn run_agent(

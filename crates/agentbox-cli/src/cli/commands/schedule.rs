@@ -51,7 +51,7 @@ pub async fn execute(
 
     let resp = ipc_call("agent.schedule", params).await?;
 
-    if let Some(_) = resp.result {
+    if resp.result.is_some() {
         println!("{} Schedule updated for '{}'", "✓".green(), name.bold());
     } else if let Some(error) = resp.error {
         eprintln!("{} {}", "✗".red(), error.message);
@@ -66,14 +66,14 @@ fn parse_interval(s: &str) -> anyhow::Result<i64> {
         anyhow::bail!("Empty interval");
     }
 
-    let (num_str, unit) = if s.ends_with('s') {
-        (&s[..s.len() - 1], "s")
-    } else if s.ends_with('m') {
-        (&s[..s.len() - 1], "m")
-    } else if s.ends_with('h') {
-        (&s[..s.len() - 1], "h")
-    } else if s.ends_with('d') {
-        (&s[..s.len() - 1], "d")
+    let (num_str, unit) = if let Some(n) = s.strip_suffix('s') {
+        (n, "s")
+    } else if let Some(n) = s.strip_suffix('m') {
+        (n, "m")
+    } else if let Some(n) = s.strip_suffix('h') {
+        (n, "h")
+    } else if let Some(n) = s.strip_suffix('d') {
+        (n, "d")
     } else {
         (s, "s") // default to seconds
     };

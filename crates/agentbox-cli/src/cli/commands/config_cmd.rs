@@ -3,7 +3,7 @@ use colored::Colorize;
 
 pub async fn execute(args: Vec<String>) -> anyhow::Result<()> {
     if args.is_empty() {
-        anyhow::bail!("Usage: agentbox config <subcommand>\n\nSubcommands:\n  set <key> <value>      Set a config value\n  get <key>              Get a config value\n  max_concurrent <N>     Set max concurrent agents\n  alert.webhook <url>    Add webhook alert channel\n  alert.telegram <token> <chat_id>  Add Telegram alert\n  alert.macos            Enable macOS notifications\n  alert.list             List alert channels\n  alert.remove <id>      Remove an alert channel");
+        anyhow::bail!("Usage: agentbox config <subcommand>\n\nSubcommands:\n  set <key> <value>      Set a config value\n  get <key>              Get a config value\n  max_concurrent <N>     Set max concurrent agents\n  alert.webhook <url>    Add webhook alert channel\n  alert.telegram <token> <chat_id>  Add Telegram alert\n  alert.desktop          Enable desktop notifications\n  alert.list             List alert channels\n  alert.remove <id>      Remove an alert channel");
     }
 
     match args[0].as_str() {
@@ -109,17 +109,17 @@ pub async fn execute(args: Vec<String>) -> anyhow::Result<()> {
                 eprintln!("{} {}", "✗".red(), e.message);
             }
         }
-        "alert.macos" => {
+        "alert.desktop" | "alert.macos" => {
             let resp = ipc_call(
                 "alert.add",
                 serde_json::json!({
-                    "channel": "macos",
+                    "channel": "desktop",
                     "config": {},
                 }),
             )
             .await?;
             if resp.result.is_some() {
-                println!("{} macOS notification alert enabled", "✓".green());
+                println!("{} Desktop notification alert enabled", "✓".green());
             } else if let Some(e) = resp.error {
                 eprintln!("{} {}", "✗".red(), e.message);
             }
@@ -132,10 +132,7 @@ pub async fn execute(args: Vec<String>) -> anyhow::Result<()> {
                 if channels.is_empty() {
                     println!("No alert channels configured.");
                 } else {
-                    println!(
-                        "{:<5} {:<12} {:<8} {}",
-                        "ID", "Channel", "Enabled", "Config"
-                    );
+                    println!("{:<5} {:<12} {:<8} Config", "ID", "Channel", "Enabled");
                     println!("{}", "-".repeat(60));
                     for ch in channels {
                         println!(

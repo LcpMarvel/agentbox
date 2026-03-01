@@ -211,6 +211,111 @@ async fn handle_request(
             }
         }
 
+        "agent.edit" => {
+            let name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if name.is_empty() {
+                return IpcResponse::error(req.id, -32602, "name is required".into());
+            }
+
+            let agent = match agent_repo.get_by_name(name) {
+                Ok(a) => a,
+                Err(e) => {
+                    return IpcResponse::error(req.id, -32000, format!("Agent not found: {}", e))
+                }
+            };
+
+            let conn = pool.get().unwrap();
+
+            if let Some(command) = req.params.get("command").and_then(|v| v.as_str()) {
+                if let Err(e) = conn.execute(
+                    "UPDATE agents SET command = ?1 WHERE id = ?2",
+                    rusqlite::params![command, agent.id],
+                ) {
+                    return IpcResponse::error(
+                        req.id,
+                        -32000,
+                        format!("Failed to update command: {}", e),
+                    );
+                }
+            }
+
+            if let Some(working_dir) = req.params.get("working_dir").and_then(|v| v.as_str()) {
+                if let Err(e) = conn.execute(
+                    "UPDATE agents SET working_dir = ?1 WHERE id = ?2",
+                    rusqlite::params![working_dir, agent.id],
+                ) {
+                    return IpcResponse::error(
+                        req.id,
+                        -32000,
+                        format!("Failed to update working_dir: {}", e),
+                    );
+                }
+            }
+
+            if let Some(timeout) = req.params.get("timeout_secs").and_then(|v| v.as_i64()) {
+                let timeout_val = if timeout == 0 { None } else { Some(timeout) };
+                if let Err(e) = conn.execute(
+                    "UPDATE agents SET timeout_secs = ?1 WHERE id = ?2",
+                    rusqlite::params![timeout_val, agent.id],
+                ) {
+                    return IpcResponse::error(
+                        req.id,
+                        -32000,
+                        format!("Failed to update timeout: {}", e),
+                    );
+                }
+            }
+
+            // Update retry config if any retry field is provided
+            let has_retry_fields = req.params.get("max_retries").is_some()
+                || req.params.get("retry_delay_secs").is_some()
+                || req.params.get("retry_strategy").is_some();
+
+            if has_retry_fields {
+                let max_retries = req
+                    .params
+                    .get("max_retries")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(agent.max_retries);
+                let retry_delay = req
+                    .params
+                    .get("retry_delay_secs")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(agent.retry_delay_secs);
+                let retry_strategy = req
+                    .params
+                    .get("retry_strategy")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&agent.retry_strategy);
+
+                if let Err(e) = agent_repo.update_retry_config(
+                    agent.id,
+                    max_retries,
+                    retry_delay,
+                    retry_strategy,
+                ) {
+                    return IpcResponse::error(
+                        req.id,
+                        -32000,
+                        format!("Failed to update retry config: {}", e),
+                    );
+                }
+            }
+
+            let _ = sched_tx.send(SchedulerEvent::Reload).await;
+            IpcResponse::success(
+                req.id,
+                serde_json::json!({
+                    "status": "updated",
+                    "name": name,
+                }),
+            )
+        }
+
         "agent.remove" => {
             let name = req
                 .params

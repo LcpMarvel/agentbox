@@ -23,6 +23,24 @@ pub struct RegisterAgentParams {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+pub struct EditAgentParams {
+    /// Agent name to edit
+    pub name: String,
+    /// New shell command to execute
+    pub command: Option<String>,
+    /// New working directory
+    pub dir: Option<String>,
+    /// New timeout in seconds (0 to remove)
+    pub timeout: Option<i64>,
+    /// Max retries on failure
+    pub retry: Option<i64>,
+    /// Retry delay in seconds
+    pub retry_delay: Option<i64>,
+    /// Retry strategy: "fixed" or "exponential"
+    pub retry_strategy: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct RunAgentParams {
     /// Agent name to run
     pub name: String,

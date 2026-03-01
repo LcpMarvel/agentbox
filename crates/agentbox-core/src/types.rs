@@ -20,14 +20,17 @@ impl AgentStatus {
             Self::Error => "error",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for AgentStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "idle" => Some(Self::Idle),
-            "running" => Some(Self::Running),
-            "paused" => Some(Self::Paused),
-            "error" => Some(Self::Error),
-            _ => None,
+            "idle" => Ok(Self::Idle),
+            "running" => Ok(Self::Running),
+            "paused" => Ok(Self::Paused),
+            "error" => Ok(Self::Error),
+            _ => Err(format!("unknown agent status: {}", s)),
         }
     }
 }
@@ -60,15 +63,18 @@ impl RunStatus {
             Self::Cancelled => "cancelled",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for RunStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "running" => Some(Self::Running),
-            "success" => Some(Self::Success),
-            "failed" => Some(Self::Failed),
-            "timeout" => Some(Self::Timeout),
-            "cancelled" => Some(Self::Cancelled),
-            _ => None,
+            "running" => Ok(Self::Running),
+            "success" => Ok(Self::Success),
+            "failed" => Ok(Self::Failed),
+            "timeout" => Ok(Self::Timeout),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err(format!("unknown run status: {}", s)),
         }
     }
 }
@@ -101,15 +107,18 @@ impl TriggerType {
             Self::Api => "api",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for TriggerType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "cron" => Some(Self::Cron),
-            "interval" => Some(Self::Interval),
-            "after" => Some(Self::After),
-            "manual" => Some(Self::Manual),
-            "api" => Some(Self::Api),
-            _ => None,
+            "cron" => Ok(Self::Cron),
+            "interval" => Ok(Self::Interval),
+            "after" => Ok(Self::After),
+            "manual" => Ok(Self::Manual),
+            "api" => Ok(Self::Api),
+            _ => Err(format!("unknown trigger type: {}", s)),
         }
     }
 }
@@ -138,13 +147,16 @@ impl LogLevel {
             Self::System => "system",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for LogLevel {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "stdout" => Some(Self::Stdout),
-            "stderr" => Some(Self::Stderr),
-            "system" => Some(Self::System),
-            _ => None,
+            "stdout" => Ok(Self::Stdout),
+            "stderr" => Ok(Self::Stderr),
+            "system" => Ok(Self::System),
+            _ => Err(format!("unknown log level: {}", s)),
         }
     }
 }

@@ -3,10 +3,9 @@ use agentbox_db::models::LogEntry;
 use colored::Colorize;
 
 pub async fn execute(name: Option<&str>, all: bool, tail: i64) -> anyhow::Result<()> {
-    let params = if all || name.is_none() {
-        serde_json::json!({"all": true, "limit": tail})
-    } else {
-        serde_json::json!({"name": name.unwrap(), "limit": tail})
+    let params = match name {
+        Some(n) if !all => serde_json::json!({"name": n, "limit": tail}),
+        _ => serde_json::json!({"all": true, "limit": tail}),
     };
 
     let resp = ipc_call("logs.tail", params).await?;

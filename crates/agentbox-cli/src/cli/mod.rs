@@ -98,6 +98,30 @@ pub enum Commands {
         limit: i64,
     },
 
+    /// Edit an agent's command or configuration
+    Edit {
+        /// Agent name
+        name: String,
+        /// New command to execute
+        #[arg(short = 'c', long)]
+        command: Option<String>,
+        /// New working directory
+        #[arg(short = 'd', long)]
+        dir: Option<String>,
+        /// Timeout in seconds (0 to remove)
+        #[arg(long)]
+        timeout: Option<i64>,
+        /// Max retries on failure
+        #[arg(long)]
+        retry: Option<i64>,
+        /// Retry delay in seconds
+        #[arg(long)]
+        retry_delay: Option<i64>,
+        /// Retry strategy: "fixed" or "exponential"
+        #[arg(long)]
+        retry_strategy: Option<String>,
+    },
+
     /// Remove an agent
     #[command(alias = "rm")]
     Remove {
@@ -137,9 +161,9 @@ pub enum DaemonAction {
     Stop,
     /// Show daemon status
     Status,
-    /// Install as macOS LaunchAgent (auto-start on login)
+    /// Install as system service (auto-start on login)
     Install,
-    /// Uninstall macOS LaunchAgent
+    /// Uninstall system service
     Uninstall,
 }
 
@@ -180,6 +204,26 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
             commands::logs::execute(name.as_deref(), all, tail).await
         }
         Commands::History { name, limit } => commands::history::execute(&name, limit).await,
+        Commands::Edit {
+            name,
+            command,
+            dir,
+            timeout,
+            retry,
+            retry_delay,
+            retry_strategy,
+        } => {
+            commands::edit::execute(
+                &name,
+                command,
+                dir,
+                timeout,
+                retry,
+                retry_delay,
+                retry_strategy,
+            )
+            .await
+        }
         Commands::Remove { name } => commands::remove::execute(&name).await,
         Commands::Daemon { action } => match action {
             DaemonAction::Start { foreground } => commands::daemon::start(foreground).await,

@@ -46,23 +46,22 @@ pub async fn stop() -> anyhow::Result<()> {
     }
 
     // Try IPC shutdown first
-    if config::socket_path().exists() {
-        match super::ipc_call("daemon.stop", serde_json::json!({})).await {
-            Ok(_) => {
-                println!("{} Daemon stopping...", "✓".green());
-                // Wait for process to exit
-                for _ in 0..50 {
-                    if !daemon::is_daemon_running() {
-                        break;
-                    }
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                }
-                daemon::remove_pid_file();
-                daemon::cleanup_socket();
-                return Ok(());
+    if config::socket_path().exists()
+        && super::ipc_call("daemon.stop", serde_json::json!({}))
+            .await
+            .is_ok()
+    {
+        println!("{} Daemon stopping...", "✓".green());
+        // Wait for process to exit
+        for _ in 0..50 {
+            if !daemon::is_daemon_running() {
+                break;
             }
-            Err(_) => {}
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
+        daemon::remove_pid_file();
+        daemon::cleanup_socket();
+        return Ok(());
     }
 
     // Fallback: kill by PID
@@ -100,25 +99,20 @@ pub async fn status() -> anyhow::Result<()> {
     Ok(())
 }
 
-const LAUNCHD_LABEL: &str = "com.agentbox.daemon";
-
-fn plist_path() -> std::path::PathBuf {
-    dirs::home_dir()
-        .expect("Cannot determine home directory")
-        .join("Library/LaunchAgents")
-        .join(format!("{}.plist", LAUNCHD_LABEL))
-}
-
 pub async fn install() -> anyhow::Result<()> {
-    let exe = std::env::current_exe()?;
-    let plist_dir = dirs::home_dir()
-        .expect("Cannot determine home directory")
-        .join("Library/LaunchAgents");
-    std::fs::create_dir_all(&plist_dir)?;
+    #[cfg(target_os = "macos")]
+    {
+        const LAUNCHD_LABEL: &str = "com.agentbox.daemon";
 
-    let log_path = config::daemon_log_path();
-    let plist_content = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
+        let exe = std::env::current_exe()?;
+        let plist_dir = dirs::home_dir()
+            .expect("Cannot determine home directory")
+            .join("Library/LaunchAgents");
+        std::fs::create_dir_all(&plist_dir)?;
+
+        let log_path = config::daemon_log_path();
+        let plist_content = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -141,58 +135,159 @@ pub async fn install() -> anyhow::Result<()> {
     <string>{log}</string>
 </dict>
 </plist>"#,
-        label = LAUNCHD_LABEL,
-        exe = exe.display(),
-        log = log_path.display(),
-    );
-
-    let path = plist_path();
-    std::fs::write(&path, plist_content)?;
-
-    // Load the agent
-    let output = Command::new("launchctl")
-        .args(["load", "-w"])
-        .arg(&path)
-        .output()?;
-
-    if output.status.success() {
-        println!("{} LaunchAgent installed and loaded", "✓".green());
-        println!("  Plist: {}", path.display());
-        println!("  AgentBox daemon will auto-start on login");
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!(
-            "{} Failed to load LaunchAgent: {}",
-            "✗".red(),
-            stderr.trim()
+            label = LAUNCHD_LABEL,
+            exe = exe.display(),
+            log = log_path.display(),
         );
+
+        let path = plist_dir.join(format!("{}.plist", LAUNCHD_LABEL));
+        std::fs::write(&path, plist_content)?;
+
+        // Load the agent
+        let output = Command::new("launchctl")
+            .args(["load", "-w"])
+            .arg(&path)
+            .output()?;
+
+        if output.status.success() {
+            println!("{} LaunchAgent installed and loaded", "✓".green());
+            println!("  Plist: {}", path.display());
+            println!("  AgentBox daemon will auto-start on login");
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!(
+                "{} Failed to load LaunchAgent: {}",
+                "✗".red(),
+                stderr.trim()
+            );
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let exe = std::env::current_exe()?;
+        let log_path = config::daemon_log_path();
+
+        let unit_dir = dirs::home_dir()
+            .expect("Cannot determine home directory")
+            .join(".config/systemd/user");
+        std::fs::create_dir_all(&unit_dir)?;
+
+        let unit_content = format!(
+            "[Unit]\n\
+             Description=AgentBox Daemon\n\
+             After=network.target\n\
+             \n\
+             [Service]\n\
+             Type=exec\n\
+             ExecStart={exe} daemon start --foreground\n\
+             Restart=on-failure\n\
+             StandardOutput=append:{log}\n\
+             StandardError=append:{log}\n\
+             \n\
+             [Install]\n\
+             WantedBy=default.target\n",
+            exe = exe.display(),
+            log = log_path.display(),
+        );
+
+        let unit_path = unit_dir.join("agentbox.service");
+        std::fs::write(&unit_path, unit_content)?;
+
+        // Reload and enable
+        let reload = Command::new("systemctl")
+            .args(["--user", "daemon-reload"])
+            .output()?;
+        if !reload.status.success() {
+            let stderr = String::from_utf8_lossy(&reload.stderr);
+            eprintln!("{} Failed to reload systemd: {}", "✗".red(), stderr.trim());
+            return Ok(());
+        }
+
+        let enable = Command::new("systemctl")
+            .args(["--user", "enable", "--now", "agentbox"])
+            .output()?;
+
+        if enable.status.success() {
+            println!("{} systemd user service installed and started", "✓".green());
+            println!("  Unit: {}", unit_path.display());
+            println!("  AgentBox daemon will auto-start on login");
+        } else {
+            let stderr = String::from_utf8_lossy(&enable.stderr);
+            eprintln!("{} Failed to enable service: {}", "✗".red(), stderr.trim());
+        }
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        anyhow::bail!("Auto-start is not supported on this platform");
     }
 
     Ok(())
 }
 
 pub async fn uninstall() -> anyhow::Result<()> {
-    let path = plist_path();
-    if !path.exists() {
-        println!("LaunchAgent is not installed.");
-        return Ok(());
+    #[cfg(target_os = "macos")]
+    {
+        const LAUNCHD_LABEL: &str = "com.agentbox.daemon";
+        let path = dirs::home_dir()
+            .expect("Cannot determine home directory")
+            .join("Library/LaunchAgents")
+            .join(format!("{}.plist", LAUNCHD_LABEL));
+
+        if !path.exists() {
+            println!("LaunchAgent is not installed.");
+            return Ok(());
+        }
+
+        let output = Command::new("launchctl")
+            .args(["unload", "-w"])
+            .arg(&path)
+            .output()?;
+
+        if output.status.success() || !daemon::is_daemon_running() {
+            std::fs::remove_file(&path)?;
+            println!("{} LaunchAgent uninstalled", "✓".green());
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!(
+                "{} Failed to unload LaunchAgent: {}",
+                "✗".red(),
+                stderr.trim()
+            );
+        }
     }
 
-    let output = Command::new("launchctl")
-        .args(["unload", "-w"])
-        .arg(&path)
-        .output()?;
+    #[cfg(target_os = "linux")]
+    {
+        let unit_path = dirs::home_dir()
+            .expect("Cannot determine home directory")
+            .join(".config/systemd/user/agentbox.service");
 
-    if output.status.success() || !daemon::is_daemon_running() {
-        std::fs::remove_file(&path)?;
-        println!("{} LaunchAgent uninstalled", "✓".green());
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!(
-            "{} Failed to unload LaunchAgent: {}",
-            "✗".red(),
-            stderr.trim()
-        );
+        if !unit_path.exists() {
+            println!("systemd service is not installed.");
+            return Ok(());
+        }
+
+        let disable = Command::new("systemctl")
+            .args(["--user", "disable", "--now", "agentbox"])
+            .output()?;
+
+        if disable.status.success() || !daemon::is_daemon_running() {
+            std::fs::remove_file(&unit_path)?;
+            let _ = Command::new("systemctl")
+                .args(["--user", "daemon-reload"])
+                .output();
+            println!("{} systemd user service uninstalled", "✓".green());
+        } else {
+            let stderr = String::from_utf8_lossy(&disable.stderr);
+            eprintln!("{} Failed to disable service: {}", "✗".red(), stderr.trim());
+        }
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        anyhow::bail!("Auto-start is not supported on this platform");
     }
 
     Ok(())

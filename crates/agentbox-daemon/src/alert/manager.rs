@@ -74,7 +74,7 @@ impl AlertManager {
                         .await
                 }
                 "telegram" => self.send_telegram(&config, &message).await,
-                "macos" => self.send_macos_notification(&message, agent_name).await,
+                "desktop" | "macos" => self.send_desktop_notification(&message, agent_name).await,
                 other => {
                     warn!("Unknown alert channel: {}", other);
                     continue;
@@ -164,24 +164,52 @@ impl AlertManager {
         Ok(())
     }
 
-    async fn send_macos_notification(&self, message: &str, agent_name: &str) -> Result<(), String> {
-        let script = format!(
-            r#"display notification "{}" with title "AgentBox" subtitle "{}""#,
-            message.replace('"', r#"\""#),
-            agent_name.replace('"', r#"\""#),
-        );
+    async fn send_desktop_notification(
+        &self,
+        message: &str,
+        agent_name: &str,
+    ) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        {
+            let script = format!(
+                r#"display notification "{}" with title "AgentBox" subtitle "{}""#,
+                message.replace('"', r#"\""#),
+                agent_name.replace('"', r#"\""#),
+            );
 
-        let output = tokio::process::Command::new("osascript")
-            .arg("-e")
-            .arg(&script)
-            .output()
-            .await
-            .map_err(|e| e.to_string())?;
+            let output = tokio::process::Command::new("osascript")
+                .arg("-e")
+                .arg(&script)
+                .output()
+                .await
+                .map_err(|e| e.to_string())?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("osascript failed: {}", stderr));
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("osascript failed: {}", stderr));
+            }
+            Ok(())
         }
-        Ok(())
+
+        #[cfg(target_os = "linux")]
+        {
+            let output = tokio::process::Command::new("notify-send")
+                .arg(format!("AgentBox: {}", agent_name))
+                .arg(message)
+                .output()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("notify-send failed: {}", stderr));
+            }
+            Ok(())
+        }
+
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        {
+            Err("Desktop notifications not supported on this platform".into())
+        }
     }
 }

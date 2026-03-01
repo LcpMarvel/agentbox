@@ -1,6 +1,7 @@
 pub mod config_cmd;
 pub mod daemon;
 pub mod dashboard;
+pub mod edit;
 pub mod history;
 pub mod list;
 pub mod logs;
