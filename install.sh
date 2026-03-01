@@ -2,7 +2,7 @@
 set -e
 
 # AgentBox installer — detects OS/arch and downloads from GitHub Releases.
-# Usage: curl -fsSL https://raw.githubusercontent.com/<owner>/agent-box/main/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/<owner>/agent-box/master/install.sh | sh
 
 REPO="LcpMarvel/agentbox"
 INSTALL_DIR="$HOME/.local/bin"

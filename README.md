@@ -27,7 +27,7 @@ AgentBox solves this: **one unified place to register, schedule, and monitor all
 
 ```bash
 # One-line install (auto-detects OS/arch, downloads from GitHub Releases)
-curl -fsSL https://raw.githubusercontent.com/LcpMarvel/agentbox/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/LcpMarvel/agentbox/master/install.sh | sh
 
 # Or build from source
 cargo install --path crates/agentbox-cli

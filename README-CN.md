@@ -27,7 +27,7 @@ AgentBox 解决这个问题：**一个统一的地方注册、调度、监控你
 
 ```bash
 # 一键安装（自动检测系统架构，从 GitHub Releases 下载）
-curl -fsSL https://raw.githubusercontent.com/LcpMarvel/agentbox/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/LcpMarvel/agentbox/master/install.sh | sh
 
 # 或从源码编译
 cargo install --path crates/agentbox-cli
