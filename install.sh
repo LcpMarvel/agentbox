@@ -34,7 +34,9 @@ get_latest_version() {
     RESPONSE=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) \
         || error "Could not fetch releases from GitHub. Check https://github.com/${REPO}/releases"
     VERSION=$(echo "$RESPONSE" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
-    [ -z "$VERSION" ] && error "No releases found. Check https://github.com/${REPO}/releases"
+    if [ -z "$VERSION" ]; then
+        error "No releases found. Check https://github.com/${REPO}/releases"
+    fi
 }
 
 download_and_install() {
