@@ -20,6 +20,7 @@ pub struct Agent {
     pub next_run_at: Option<String>,
     pub retry_delay_secs: i64,
     pub retry_strategy: String,
+    pub notify_on_success: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

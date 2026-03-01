@@ -164,6 +164,29 @@ impl AlertManager {
         Ok(())
     }
 
+    /// When an agent succeeds and `notify_on_success` is enabled,
+    /// send a desktop notification if no alert channels are configured.
+    pub async fn notify_success_fallback(&self, agent_name: &str, notify_on_success: bool) {
+        if !notify_on_success {
+            return;
+        }
+
+        let alert_repo = AlertRepo::new(self.pool.clone());
+        let has_channels = match alert_repo.list_enabled() {
+            Ok(ch) => !ch.is_empty(),
+            Err(_) => false,
+        };
+
+        if has_channels {
+            return;
+        }
+
+        let message = format!("✅ Agent '{}' done", agent_name);
+        if let Err(e) = self.send_desktop_notification(&message, agent_name).await {
+            warn!("Desktop notification fallback failed: {}", e);
+        }
+    }
+
     async fn send_desktop_notification(
         &self,
         message: &str,

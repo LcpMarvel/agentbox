@@ -5,7 +5,8 @@ use rusqlite::params;
 const AGENT_SELECT: &str =
     "SELECT id, name, command, working_dir, env_vars, schedule_type, cron_expr,
         interval_secs, after_agent_id, status, paused, timeout_secs, max_retries,
-        created_at, last_run_at, next_run_at, retry_delay_secs, retry_strategy
+        created_at, last_run_at, next_run_at, retry_delay_secs, retry_strategy,
+        notify_on_success
  FROM agents";
 
 fn row_to_agent(row: &rusqlite::Row) -> rusqlite::Result<Agent> {
@@ -28,6 +29,7 @@ fn row_to_agent(row: &rusqlite::Row) -> rusqlite::Result<Agent> {
         next_run_at: row.get(15)?,
         retry_delay_secs: row.get(16)?,
         retry_strategy: row.get(17)?,
+        notify_on_success: row.get(18)?,
     })
 }
 

@@ -20,6 +20,8 @@ pub struct RegisterAgentParams {
     pub retry_delay: Option<i64>,
     /// Retry strategy: "fixed" or "exponential" (default: "fixed")
     pub retry_strategy: Option<String>,
+    /// Send desktop notification on successful completion (default: true)
+    pub notify_on_success: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
@@ -38,6 +40,8 @@ pub struct EditAgentParams {
     pub retry_delay: Option<i64>,
     /// Retry strategy: "fixed" or "exponential"
     pub retry_strategy: Option<String>,
+    /// Send desktop notification on successful completion
+    pub notify_on_success: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]

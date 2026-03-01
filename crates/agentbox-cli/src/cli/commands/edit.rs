@@ -1,6 +1,7 @@
 use super::ipc_call;
 use colored::Colorize;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn execute(
     name: &str,
     command: Option<String>,
@@ -9,6 +10,7 @@ pub async fn execute(
     retry: Option<i64>,
     retry_delay: Option<i64>,
     retry_strategy: Option<String>,
+    notify_on_success: Option<bool>,
 ) -> anyhow::Result<()> {
     if command.is_none()
         && dir.is_none()
@@ -16,9 +18,10 @@ pub async fn execute(
         && retry.is_none()
         && retry_delay.is_none()
         && retry_strategy.is_none()
+        && notify_on_success.is_none()
     {
         anyhow::bail!(
-            "Nothing to update. Specify at least one of: --command, --dir, --timeout, --retry, --retry-delay, --retry-strategy"
+            "Nothing to update. Specify at least one of: --command, --dir, --timeout, --retry, --retry-delay, --retry-strategy, --notify-on-success"
         );
     }
 
@@ -42,6 +45,9 @@ pub async fn execute(
     }
     if let Some(v) = &retry_strategy {
         obj.insert("retry_strategy".into(), serde_json::json!(v));
+    }
+    if let Some(v) = notify_on_success {
+        obj.insert("notify_on_success".into(), serde_json::json!(v));
     }
 
     let resp = ipc_call("agent.edit", params).await?;

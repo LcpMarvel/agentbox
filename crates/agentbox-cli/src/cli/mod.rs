@@ -36,6 +36,9 @@ pub enum Commands {
         /// Retry strategy: "fixed" or "exponential"
         #[arg(long, default_value = "fixed")]
         retry_strategy: String,
+        /// Send desktop notification on successful completion (default: true)
+        #[arg(long)]
+        notify_on_success: Option<bool>,
     },
 
     /// List all agents
@@ -120,6 +123,9 @@ pub enum Commands {
         /// Retry strategy: "fixed" or "exponential"
         #[arg(long)]
         retry_strategy: Option<String>,
+        /// Send desktop notification on successful completion
+        #[arg(long)]
+        notify_on_success: Option<bool>,
     },
 
     /// Remove an agent
@@ -177,6 +183,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
             retry,
             retry_delay,
             retry_strategy,
+            notify_on_success,
         } => {
             commands::register::execute(
                 &name,
@@ -186,6 +193,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 retry,
                 retry_delay,
                 &retry_strategy,
+                notify_on_success,
             )
             .await
         }
@@ -212,6 +220,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
             retry,
             retry_delay,
             retry_strategy,
+            notify_on_success,
         } => {
             commands::edit::execute(
                 &name,
@@ -221,6 +230,7 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 retry,
                 retry_delay,
                 retry_strategy,
+                notify_on_success,
             )
             .await
         }

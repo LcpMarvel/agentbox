@@ -42,6 +42,11 @@ pub async fn run_agent(
                     .await;
                 }
             }
+            // Fallback: send desktop notification if no channels configured
+            if let Some(am) = alert_manager {
+                am.notify_success_fallback(&agent.name, agent.notify_on_success)
+                    .await;
+            }
         }
         Err(e) => {
             let err_msg = e.to_string();

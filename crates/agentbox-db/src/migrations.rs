@@ -30,6 +30,11 @@ pub fn run_migrations(
         conn.execute("INSERT INTO schema_version (version) VALUES (?1)", [2])?;
     }
 
+    if current < 3 {
+        m003_notify_on_success(&conn)?;
+        conn.execute("INSERT INTO schema_version (version) VALUES (?1)", [3])?;
+    }
+
     Ok(())
 }
 
@@ -117,6 +122,13 @@ fn m002_alerts_and_retry(conn: &rusqlite::Connection) -> Result<(), Box<dyn std:
         );
 
         CREATE INDEX IF NOT EXISTS idx_alert_history_agent ON alert_history(agent_id);",
+    )?;
+    Ok(())
+}
+
+fn m003_notify_on_success(conn: &rusqlite::Connection) -> Result<(), Box<dyn std::error::Error>> {
+    conn.execute_batch(
+        "ALTER TABLE agents ADD COLUMN notify_on_success INTEGER NOT NULL DEFAULT 1;",
     )?;
     Ok(())
 }

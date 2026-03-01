@@ -40,7 +40,7 @@ impl AgentBoxMcpServer {
         params: Parameters<RegisterAgentParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         let params = params.0;
-        let ipc_params = serde_json::json!({
+        let mut ipc_params = serde_json::json!({
             "name": params.name,
             "command": params.command,
             "working_dir": params.dir,
@@ -49,6 +49,9 @@ impl AgentBoxMcpServer {
             "retry_delay_secs": params.retry_delay.unwrap_or(30),
             "retry_strategy": params.retry_strategy.unwrap_or_else(|| "fixed".to_string()),
         });
+        if let Some(v) = params.notify_on_success {
+            ipc_params["notify_on_success"] = serde_json::json!(v);
+        }
 
         match IpcClient::call_ok("agent.register", ipc_params).await {
             Ok(val) => text_result(format!(
@@ -88,6 +91,9 @@ impl AgentBoxMcpServer {
         }
         if let Some(v) = &params.retry_strategy {
             obj.insert("retry_strategy".into(), serde_json::json!(v));
+        }
+        if let Some(v) = params.notify_on_success {
+            obj.insert("notify_on_success".into(), serde_json::json!(v));
         }
 
         match IpcClient::call_ok("agent.edit", ipc_params).await {

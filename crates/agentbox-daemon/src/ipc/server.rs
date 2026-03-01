@@ -128,6 +128,17 @@ async fn handle_request(
                             retry_strategy,
                         );
                     }
+                    if let Some(notify) = req
+                        .params
+                        .get("notify_on_success")
+                        .and_then(|v| v.as_bool())
+                    {
+                        let conn = pool.get().unwrap();
+                        let _ = conn.execute(
+                            "UPDATE agents SET notify_on_success = ?1 WHERE id = ?2",
+                            rusqlite::params![notify, id],
+                        );
+                    }
                     let _ = sched_tx.send(SchedulerEvent::Reload).await;
                     IpcResponse::success(
                         req.id,
@@ -302,6 +313,23 @@ async fn handle_request(
                         req.id,
                         -32000,
                         format!("Failed to update retry config: {}", e),
+                    );
+                }
+            }
+
+            if let Some(notify) = req
+                .params
+                .get("notify_on_success")
+                .and_then(|v| v.as_bool())
+            {
+                if let Err(e) = conn.execute(
+                    "UPDATE agents SET notify_on_success = ?1 WHERE id = ?2",
+                    rusqlite::params![notify, agent.id],
+                ) {
+                    return IpcResponse::error(
+                        req.id,
+                        -32000,
+                        format!("Failed to update notify_on_success: {}", e),
                     );
                 }
             }
