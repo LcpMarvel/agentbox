@@ -11,6 +11,7 @@ pub mod remove;
 pub mod resume;
 pub mod run;
 pub mod schedule;
+pub mod upgrade;
 
 use agentbox_core::config;
 use agentbox_core::types::{IpcRequest, IpcResponse};

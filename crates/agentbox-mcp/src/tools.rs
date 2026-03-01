@@ -119,3 +119,25 @@ pub fn text_result(text: String) -> Result<CallToolResult, rmcp::ErrorData> {
 pub fn err_result(msg: String) -> Result<CallToolResult, rmcp::ErrorData> {
     Ok(CallToolResult::error(vec![Content::text(msg)]))
 }
+
+pub fn text_result_with_upgrade(
+    text: String,
+    upgrade_notice: Option<&str>,
+) -> Result<CallToolResult, rmcp::ErrorData> {
+    let full = match upgrade_notice {
+        Some(notice) => format!("{}\n\n{}", text, notice),
+        None => text,
+    };
+    Ok(CallToolResult::success(vec![Content::text(full)]))
+}
+
+pub fn err_result_with_upgrade(
+    msg: String,
+    upgrade_notice: Option<&str>,
+) -> Result<CallToolResult, rmcp::ErrorData> {
+    let full = match upgrade_notice {
+        Some(notice) => format!("{}\n\n{}", msg, notice),
+        None => msg,
+    };
+    Ok(CallToolResult::error(vec![Content::text(full)]))
+}

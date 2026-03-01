@@ -1,22 +1,63 @@
 use crate::ipc_client::IpcClient;
 use crate::resources;
 use crate::tools::*;
+use agentbox_core::upgrade::{self, UpgradeInfo};
 use rmcp::handler::server::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::*;
 use rmcp::service::RequestContext;
 use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceExt};
+use std::sync::Arc;
+use tokio::sync::OnceCell;
 
 #[derive(Clone)]
 pub struct AgentBoxMcpServer {
     tool_router: ToolRouter<Self>,
+    upgrade_cache: Arc<OnceCell<Option<UpgradeInfo>>>,
+}
+
+impl AgentBoxMcpServer {
+    /// Get the cached upgrade notice string, if an update is available.
+    fn upgrade_notice(&self) -> Option<String> {
+        self.upgrade_cache
+            .get()
+            .and_then(|info| info.as_ref())
+            .filter(|info| info.has_update)
+            .map(|info| {
+                format!(
+                    "[NOTICE] AgentBox update available: v{} → v{}. \
+                     Please remind the user to run `agentbox upgrade` to update.",
+                    info.current, info.latest
+                )
+            })
+    }
+
+    /// Wrap a successful text result with upgrade notice.
+    fn ok(&self, text: String) -> Result<CallToolResult, rmcp::ErrorData> {
+        text_result_with_upgrade(text, self.upgrade_notice().as_deref())
+    }
+
+    /// Wrap an error result with upgrade notice.
+    fn err(&self, msg: String) -> Result<CallToolResult, rmcp::ErrorData> {
+        err_result_with_upgrade(msg, self.upgrade_notice().as_deref())
+    }
 }
 
 #[tool_router]
 impl AgentBoxMcpServer {
     pub fn new() -> Self {
+        let upgrade_cache = Arc::new(OnceCell::new());
+
+        // Spawn background upgrade check
+        let cache = upgrade_cache.clone();
+        tokio::spawn(async move {
+            let result = upgrade::check_latest_version().await.ok();
+            let _ = cache.set(result);
+        });
+
         Self {
             tool_router: Self::tool_router(),
+            upgrade_cache,
         }
     }
 
@@ -27,8 +68,8 @@ impl AgentBoxMcpServer {
     )]
     async fn list_agents(&self) -> Result<CallToolResult, rmcp::ErrorData> {
         match IpcClient::call_ok("agent.list", serde_json::json!({})).await {
-            Ok(val) => text_result(serde_json::to_string_pretty(&val).unwrap_or_default()),
-            Err(e) => err_result(e),
+            Ok(val) => self.ok(serde_json::to_string_pretty(&val).unwrap_or_default()),
+            Err(e) => self.err(e),
         }
     }
 
@@ -54,12 +95,12 @@ impl AgentBoxMcpServer {
         }
 
         match IpcClient::call_ok("agent.register", ipc_params).await {
-            Ok(val) => text_result(format!(
+            Ok(val) => self.ok(format!(
                 "Agent '{}' registered successfully.\n{}",
                 params.name,
                 serde_json::to_string_pretty(&val).unwrap_or_default()
             )),
-            Err(e) => err_result(format!("Failed to register agent: {}", e)),
+            Err(e) => self.err(format!("Failed to register agent: {}", e)),
         }
     }
 
@@ -97,12 +138,12 @@ impl AgentBoxMcpServer {
         }
 
         match IpcClient::call_ok("agent.edit", ipc_params).await {
-            Ok(val) => text_result(format!(
+            Ok(val) => self.ok(format!(
                 "Agent '{}' updated.\n{}",
                 params.name,
                 serde_json::to_string_pretty(&val).unwrap_or_default()
             )),
-            Err(e) => err_result(format!("Failed to edit agent: {}", e)),
+            Err(e) => self.err(format!("Failed to edit agent: {}", e)),
         }
     }
 
@@ -116,12 +157,12 @@ impl AgentBoxMcpServer {
         let params = params.0;
         let ipc_params = serde_json::json!({ "name": params.name });
         match IpcClient::call_ok("agent.run", ipc_params).await {
-            Ok(val) => text_result(format!(
+            Ok(val) => self.ok(format!(
                 "Agent '{}' triggered.\n{}",
                 params.name,
                 serde_json::to_string_pretty(&val).unwrap_or_default()
             )),
-            Err(e) => err_result(format!("Failed to run agent: {}", e)),
+            Err(e) => self.err(format!("Failed to run agent: {}", e)),
         }
     }
 
@@ -142,12 +183,12 @@ impl AgentBoxMcpServer {
         });
 
         match IpcClient::call_ok("agent.schedule", ipc_params).await {
-            Ok(val) => text_result(format!(
+            Ok(val) => self.ok(format!(
                 "Schedule updated for agent '{}'.\n{}",
                 params.name,
                 serde_json::to_string_pretty(&val).unwrap_or_default()
             )),
-            Err(e) => err_result(format!("Failed to set schedule: {}", e)),
+            Err(e) => self.err(format!("Failed to set schedule: {}", e)),
         }
     }
 
@@ -161,8 +202,8 @@ impl AgentBoxMcpServer {
         let params = params.0;
         let ipc_params = serde_json::json!({ "name": params.name });
         match IpcClient::call_ok("agent.pause", ipc_params).await {
-            Ok(_) => text_result(format!("Agent '{}' paused.", params.name)),
-            Err(e) => err_result(format!("Failed to pause agent: {}", e)),
+            Ok(_) => self.ok(format!("Agent '{}' paused.", params.name)),
+            Err(e) => self.err(format!("Failed to pause agent: {}", e)),
         }
     }
 
@@ -174,8 +215,8 @@ impl AgentBoxMcpServer {
         let params = params.0;
         let ipc_params = serde_json::json!({ "name": params.name });
         match IpcClient::call_ok("agent.resume", ipc_params).await {
-            Ok(_) => text_result(format!("Agent '{}' resumed.", params.name)),
-            Err(e) => err_result(format!("Failed to resume agent: {}", e)),
+            Ok(_) => self.ok(format!("Agent '{}' resumed.", params.name)),
+            Err(e) => self.err(format!("Failed to resume agent: {}", e)),
         }
     }
 
@@ -187,8 +228,8 @@ impl AgentBoxMcpServer {
         let params = params.0;
         let ipc_params = serde_json::json!({ "name": params.name });
         match IpcClient::call_ok("agent.remove", ipc_params).await {
-            Ok(_) => text_result(format!("Agent '{}' removed.", params.name)),
-            Err(e) => err_result(format!("Failed to remove agent: {}", e)),
+            Ok(_) => self.ok(format!("Agent '{}' removed.", params.name)),
+            Err(e) => self.err(format!("Failed to remove agent: {}", e)),
         }
     }
 
@@ -220,16 +261,16 @@ impl AgentBoxMcpServer {
                             Some(format!("[{}] [{}] {}", ts, level, msg))
                         })
                         .collect();
-                    text_result(if formatted.is_empty() {
+                    self.ok(if formatted.is_empty() {
                         "No logs found.".to_string()
                     } else {
                         formatted.join("\n")
                     })
                 } else {
-                    text_result(serde_json::to_string_pretty(&val).unwrap_or_default())
+                    self.ok(serde_json::to_string_pretty(&val).unwrap_or_default())
                 }
             }
-            Err(e) => err_result(format!("Failed to get logs: {}", e)),
+            Err(e) => self.err(format!("Failed to get logs: {}", e)),
         }
     }
 
@@ -247,8 +288,8 @@ impl AgentBoxMcpServer {
         });
 
         match IpcClient::call_ok("runs.history", ipc_params).await {
-            Ok(val) => text_result(serde_json::to_string_pretty(&val).unwrap_or_default()),
-            Err(e) => err_result(format!("Failed to get history: {}", e)),
+            Ok(val) => self.ok(serde_json::to_string_pretty(&val).unwrap_or_default()),
+            Err(e) => self.err(format!("Failed to get history: {}", e)),
         }
     }
 
@@ -257,8 +298,8 @@ impl AgentBoxMcpServer {
     )]
     async fn get_dashboard_stats(&self) -> Result<CallToolResult, rmcp::ErrorData> {
         match IpcClient::call_ok("daemon.status", serde_json::json!({})).await {
-            Ok(val) => text_result(serde_json::to_string_pretty(&val).unwrap_or_default()),
-            Err(e) => err_result(format!("Failed to get stats: {}", e)),
+            Ok(val) => self.ok(serde_json::to_string_pretty(&val).unwrap_or_default()),
+            Err(e) => self.err(format!("Failed to get stats: {}", e)),
         }
     }
 
@@ -278,8 +319,8 @@ impl AgentBoxMcpServer {
         };
 
         match IpcClient::call_ok("config.get", ipc_params).await {
-            Ok(val) => text_result(serde_json::to_string_pretty(&val).unwrap_or_default()),
-            Err(e) => err_result(format!("Failed to get config: {}", e)),
+            Ok(val) => self.ok(serde_json::to_string_pretty(&val).unwrap_or_default()),
+            Err(e) => self.err(format!("Failed to get config: {}", e)),
         }
     }
 
@@ -295,8 +336,8 @@ impl AgentBoxMcpServer {
         });
 
         match IpcClient::call_ok("config.set", ipc_params).await {
-            Ok(_) => text_result(format!("Config '{}' updated.", params.key)),
-            Err(e) => err_result(format!("Failed to set config: {}", e)),
+            Ok(_) => self.ok(format!("Config '{}' updated.", params.key)),
+            Err(e) => self.err(format!("Failed to set config: {}", e)),
         }
     }
 
@@ -310,8 +351,8 @@ impl AgentBoxMcpServer {
         let params = params.0;
         match params.action.as_str() {
             "list" => match IpcClient::call_ok("alert.list", serde_json::json!({})).await {
-                Ok(val) => text_result(serde_json::to_string_pretty(&val).unwrap_or_default()),
-                Err(e) => err_result(format!("Failed to list alerts: {}", e)),
+                Ok(val) => self.ok(serde_json::to_string_pretty(&val).unwrap_or_default()),
+                Err(e) => self.err(format!("Failed to list alerts: {}", e)),
             },
             "add" => {
                 let channel = params.channel.as_deref().unwrap_or("");
@@ -321,22 +362,44 @@ impl AgentBoxMcpServer {
                     "config": config,
                 });
                 match IpcClient::call_ok("alert.add", ipc_params).await {
-                    Ok(_) => text_result(format!("Alert channel '{}' added.", channel)),
-                    Err(e) => err_result(format!("Failed to add alert: {}", e)),
+                    Ok(_) => self.ok(format!("Alert channel '{}' added.", channel)),
+                    Err(e) => self.err(format!("Failed to add alert: {}", e)),
                 }
             }
             "remove" => {
                 let channel = params.channel.as_deref().unwrap_or("");
                 let ipc_params = serde_json::json!({ "channel": channel });
                 match IpcClient::call_ok("alert.remove", ipc_params).await {
-                    Ok(_) => text_result(format!("Alert channel '{}' removed.", channel)),
-                    Err(e) => err_result(format!("Failed to remove alert: {}", e)),
+                    Ok(_) => self.ok(format!("Alert channel '{}' removed.", channel)),
+                    Err(e) => self.err(format!("Failed to remove alert: {}", e)),
                 }
             }
-            other => err_result(format!(
+            other => self.err(format!(
                 "Unknown action '{}'. Use 'add', 'list', or 'remove'.",
                 other
             )),
+        }
+    }
+
+    // ── Upgrade ──
+
+    #[tool(
+        description = "Check if a newer version of AgentBox is available. Returns current version, latest version, and whether an update is available."
+    )]
+    async fn check_upgrade(&self) -> Result<CallToolResult, rmcp::ErrorData> {
+        match upgrade::check_latest_version().await {
+            Ok(info) => {
+                let msg = if info.has_update {
+                    format!(
+                        "Update available: v{} → v{}\nRun `agentbox upgrade` to update.",
+                        info.current, info.latest
+                    )
+                } else {
+                    format!("AgentBox v{} is up to date.", info.current)
+                };
+                text_result(msg)
+            }
+            Err(e) => err_result(format!("Failed to check for updates: {}", e)),
         }
     }
 }

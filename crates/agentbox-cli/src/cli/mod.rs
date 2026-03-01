@@ -153,6 +153,13 @@ pub enum Commands {
 
     /// Start MCP server for AI client integration (stdio transport)
     Mcp,
+
+    /// Check for updates and upgrade AgentBox to the latest version
+    Upgrade {
+        /// Only check for updates without downloading
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -245,5 +252,6 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
         Commands::Dashboard => commands::dashboard::execute().await,
         Commands::Config { args } => commands::config_cmd::execute(args).await,
         Commands::Mcp => agentbox_mcp::run_server().await,
+        Commands::Upgrade { check } => commands::upgrade::execute(check).await,
     }
 }
