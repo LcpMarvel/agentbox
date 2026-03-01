@@ -1,6 +1,6 @@
 use crate::alert::{AlertManager, AlertType};
 use agentbox_db::models::Agent;
-use agentbox_db::repo::{AgentRepo, LogRepo, RunRepo};
+use agentbox_db::repo::{AgentRepo, ConfigRepo, LogRepo, RunRepo};
 use chrono::Utc;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -14,6 +14,7 @@ pub async fn run_agent(
     _log_repo: &LogRepo,
     agent_repo: &AgentRepo,
     alert_manager: Option<&AlertManager>,
+    config_repo: &ConfigRepo,
 ) -> anyhow::Result<()> {
     let was_error = agent.status == "error";
 
@@ -25,7 +26,7 @@ pub async fn run_agent(
         .update_last_run(agent.id, &Utc::now().to_rfc3339())
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    let result = execute_with_retries(agent, trigger, run_repo, agent_repo).await;
+    let result = execute_with_retries(agent, trigger, run_repo, agent_repo, config_repo).await;
 
     match &result {
         Ok(()) => {
@@ -76,12 +77,21 @@ async fn execute_with_retries(
     trigger: &str,
     run_repo: &RunRepo,
     agent_repo: &AgentRepo,
+    config_repo: &ConfigRepo,
 ) -> anyhow::Result<()> {
     let max_attempts = (agent.max_retries + 1) as u32;
 
     for attempt in 0..max_attempts {
         let retry_count = attempt as i64;
-        let result = execute_once(agent, trigger, run_repo, agent_repo, retry_count).await;
+        let result = execute_once(
+            agent,
+            trigger,
+            run_repo,
+            agent_repo,
+            retry_count,
+            config_repo,
+        )
+        .await;
 
         match result {
             Ok(true) => return Ok(()), // success
@@ -125,9 +135,28 @@ async fn execute_once(
     run_repo: &RunRepo,
     agent_repo: &AgentRepo,
     retry_count: i64,
+    config_repo: &ConfigRepo,
 ) -> anyhow::Result<bool> {
+    // Resolve shell: config "shell" > $SHELL > /bin/sh
+    let shell = config_repo
+        .get("shell")
+        .ok()
+        .flatten()
+        .or_else(|| std::env::var("SHELL").ok())
+        .unwrap_or_else(|| "/bin/sh".to_string());
+
+    let use_login = config_repo
+        .get("shell_login")
+        .ok()
+        .flatten()
+        .map(|v| v != "false")
+        .unwrap_or(true);
+
     // Spawn the child process
-    let mut cmd = Command::new("sh");
+    let mut cmd = Command::new(&shell);
+    if use_login {
+        cmd.arg("-l");
+    }
     cmd.arg("-c").arg(&agent.command);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

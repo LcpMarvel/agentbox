@@ -174,13 +174,43 @@ impl AgentBoxMcpServer {
         params: Parameters<ScheduleAgentParams>,
     ) -> Result<CallToolResult, rmcp::ErrorData> {
         let params = params.0;
-        let ipc_params = serde_json::json!({
-            "name": params.name,
-            "cron": params.cron,
-            "every": params.every,
-            "after": params.after,
-            "manual": params.manual.unwrap_or(false),
-        });
+
+        // Build IPC params matching what the daemon expects
+        let ipc_params = if params.manual.unwrap_or(false) {
+            serde_json::json!({
+                "name": params.name,
+                "schedule_type": "manual",
+            })
+        } else if let Some(cron_expr) = &params.cron {
+            // Users provide 5-field cron; daemon expects 6-field (with seconds)
+            let full_cron = if cron_expr.split_whitespace().count() == 5 {
+                format!("0 {}", cron_expr)
+            } else {
+                cron_expr.clone()
+            };
+            serde_json::json!({
+                "name": params.name,
+                "schedule_type": "cron",
+                "cron_expr": full_cron,
+            })
+        } else if let Some(every) = &params.every {
+            match parse_interval(every) {
+                Ok(secs) => serde_json::json!({
+                    "name": params.name,
+                    "schedule_type": "interval",
+                    "interval_secs": secs,
+                }),
+                Err(e) => return self.err(format!("Invalid interval '{}': {}", every, e)),
+            }
+        } else if let Some(after_name) = &params.after {
+            serde_json::json!({
+                "name": params.name,
+                "schedule_type": "after",
+                "after_agent": after_name,
+            })
+        } else {
+            return self.err("Provide one of: cron, every, after, or manual".to_string());
+        };
 
         match IpcClient::call_ok("agent.schedule", ipc_params).await {
             Ok(val) => self.ok(format!(
@@ -449,6 +479,31 @@ impl ServerHandler for AgentBoxMcpServer {
     ) -> Result<ReadResourceResult, rmcp::ErrorData> {
         resources::read_resource(&request.uri).await
     }
+}
+
+/// Parse a human-friendly interval string (e.g. "30m", "2h", "1d") into seconds.
+fn parse_interval(s: &str) -> Result<i64, String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err("empty interval".to_string());
+    }
+
+    let (num_str, multiplier) = if let Some(n) = s.strip_suffix('s') {
+        (n, 1)
+    } else if let Some(n) = s.strip_suffix('m') {
+        (n, 60)
+    } else if let Some(n) = s.strip_suffix('h') {
+        (n, 3600)
+    } else if let Some(n) = s.strip_suffix('d') {
+        (n, 86400)
+    } else {
+        (s, 1) // default to seconds
+    };
+
+    let num: i64 = num_str
+        .parse()
+        .map_err(|_| format!("invalid number: {}", num_str))?;
+    Ok(num * multiplier)
 }
 
 /// Entry point: start the MCP server on stdio.

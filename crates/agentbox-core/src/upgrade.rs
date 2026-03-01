@@ -72,7 +72,7 @@ pub async fn check_latest_version() -> Result<UpgradeInfo, String> {
     };
 
     let target = detect_target();
-    let asset_name = format!("agentbox-{}.tar.gz", target);
+    let asset_name = format!("agentbox-{}-{}.tar.gz", release.tag_name, target);
     let download_url = release
         .assets
         .iter()

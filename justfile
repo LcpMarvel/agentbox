@@ -40,6 +40,24 @@ release:
 dev:
     cargo run -- daemon start --foreground
 
+# Bump version, commit, tag, and push to trigger release CI
+# Usage: just publish 0.4.0
+publish version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    V="{{version}}"
+    # Update all Cargo.toml versions
+    for f in crates/*/Cargo.toml; do
+        sed -i '' "s/^version = \".*\"/version = \"$V\"/" "$f"
+    done
+    # Update dashboard/package.json version
+    sed -i '' "s/\"version\": \".*\"/\"version\": \"$V\"/" dashboard/package.json
+    # Commit and tag
+    git add crates/*/Cargo.toml dashboard/package.json
+    git commit -m "release: v$V"
+    git tag "v$V"
+    echo "Done. Run 'git push && git push --tags' to trigger release CI."
+
 # Clean all build artifacts
 clean:
     cargo clean

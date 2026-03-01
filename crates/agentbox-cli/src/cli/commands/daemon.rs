@@ -111,6 +111,7 @@ pub async fn install() -> anyhow::Result<()> {
         std::fs::create_dir_all(&plist_dir)?;
 
         let log_path = config::daemon_log_path();
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
         let plist_content = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -125,6 +126,11 @@ pub async fn install() -> anyhow::Result<()> {
         <string>start</string>
         <string>--foreground</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SHELL</key>
+        <string>{shell}</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -138,6 +144,7 @@ pub async fn install() -> anyhow::Result<()> {
             label = LAUNCHD_LABEL,
             exe = exe.display(),
             log = log_path.display(),
+            shell = shell,
         );
 
         let path = plist_dir.join(format!("{}.plist", LAUNCHD_LABEL));
@@ -173,6 +180,7 @@ pub async fn install() -> anyhow::Result<()> {
             .join(".config/systemd/user");
         std::fs::create_dir_all(&unit_dir)?;
 
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
         let unit_content = format!(
             "[Unit]\n\
              Description=AgentBox Daemon\n\
@@ -181,6 +189,7 @@ pub async fn install() -> anyhow::Result<()> {
              [Service]\n\
              Type=exec\n\
              ExecStart={exe} daemon start --foreground\n\
+             Environment=SHELL={shell}\n\
              Restart=on-failure\n\
              StandardOutput=append:{log}\n\
              StandardError=append:{log}\n\
@@ -189,6 +198,7 @@ pub async fn install() -> anyhow::Result<()> {
              WantedBy=default.target\n",
             exe = exe.display(),
             log = log_path.display(),
+            shell = shell,
         );
 
         let unit_path = unit_dir.join("agentbox.service");

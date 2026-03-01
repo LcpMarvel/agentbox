@@ -343,6 +343,7 @@ impl SchedulerEngine {
             &self.log_repo,
             &self.agent_repo,
             Some(&self.alert_manager),
+            &self.config_repo,
         )
         .await;
 
