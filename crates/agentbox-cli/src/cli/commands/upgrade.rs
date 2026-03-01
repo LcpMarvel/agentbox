@@ -1,4 +1,5 @@
 use agentbox_core::upgrade;
+use agentbox_daemon::daemon;
 use colored::Colorize;
 
 pub async fn execute(check_only: bool) -> anyhow::Result<()> {
@@ -28,6 +29,21 @@ pub async fn execute(check_only: bool) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // Check if daemon is running before upgrade
+    let daemon_was_running = daemon::is_daemon_running();
+
+    // Stop daemon before replacing binary
+    if daemon_was_running {
+        println!("{}", "Stopping daemon...".dimmed());
+        if let Err(e) = super::daemon::stop().await {
+            eprintln!(
+                "{} Failed to stop daemon: {} (continuing upgrade anyway)",
+                "!".yellow(),
+                e
+            );
+        }
+    }
+
     println!("{}", "Downloading...".dimmed());
     upgrade::download_and_replace(&info.download_url)
         .await
@@ -38,6 +54,20 @@ pub async fn execute(check_only: bool) -> anyhow::Result<()> {
         "✓".green(),
         info.latest
     );
+
+    // Restart daemon if it was running
+    if daemon_was_running {
+        println!("{}", "Restarting daemon...".dimmed());
+        if let Err(e) = super::daemon::start(false).await {
+            eprintln!("{} Failed to restart daemon: {}", "!".yellow(), e);
+            println!(
+                "  You can start it manually with: {}",
+                "agentbox daemon start".bold()
+            );
+        } else {
+            println!("{} Daemon restarted with new version", "✓".green());
+        }
+    }
 
     Ok(())
 }

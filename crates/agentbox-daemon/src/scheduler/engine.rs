@@ -1,6 +1,7 @@
 use crate::alert::AlertManager;
 use agentbox_db::repo::{AgentRepo, ConfigRepo, LogRepo, RunRepo};
 use chrono::{DateTime, Utc};
+use chrono_tz::Tz;
 use cron::Schedule;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -75,6 +76,38 @@ impl SchedulerEngine {
         }
     }
 
+    /// Resolve the timezone to use for cron scheduling.
+    /// Priority: config "timezone" > system timezone > UTC fallback.
+    fn resolve_timezone(&self) -> Tz {
+        // Check config first
+        if let Ok(Some(tz_str)) = self.config_repo.get("timezone") {
+            if let Ok(tz) = tz_str.parse::<Tz>() {
+                return tz;
+            }
+            warn!(
+                "Invalid timezone in config: '{}', falling back to system timezone",
+                tz_str
+            );
+        }
+        // Auto-detect system timezone
+        match iana_time_zone::get_timezone() {
+            Ok(tz_str) => match tz_str.parse::<Tz>() {
+                Ok(tz) => {
+                    info!("Using system timezone: {}", tz_str);
+                    tz
+                }
+                Err(_) => {
+                    warn!("Failed to parse system timezone '{}', using UTC", tz_str);
+                    Tz::UTC
+                }
+            },
+            Err(_) => {
+                warn!("Failed to detect system timezone, using UTC");
+                Tz::UTC
+            }
+        }
+    }
+
     fn max_concurrent(&self) -> usize {
         self.config_repo
             .get("max_concurrent")
@@ -130,6 +163,10 @@ impl SchedulerEngine {
 
                             self.fire_job(job.agent_id).await;
                             if let Some(next) = self.compute_next_run(job.agent_id) {
+                                let _ = self.agent_repo.update_next_run(
+                                    job.agent_id,
+                                    Some(&next.to_rfc3339()),
+                                );
                                 heap.push(ScheduledJob {
                                     agent_id: job.agent_id,
                                     next_run: next,
@@ -183,10 +220,22 @@ impl SchedulerEngine {
     }
 
     fn load_jobs(&self, heap: &mut BinaryHeap<ScheduledJob>) {
+        let tz = self.resolve_timezone();
+        info!("Scheduler using timezone: {}", tz);
         match self.agent_repo.list_scheduled() {
             Ok(agents) => {
-                for agent in agents {
+                for agent in &agents {
                     if let Some(next) = self.compute_next_run(agent.id) {
+                        info!(
+                            "Scheduled agent '{}': next run at {} ({})",
+                            agent.name,
+                            next.with_timezone(&tz).format("%Y-%m-%d %H:%M:%S %Z"),
+                            next,
+                        );
+                        // Persist next_run_at to DB
+                        let _ = self
+                            .agent_repo
+                            .update_next_run(agent.id, Some(&next.to_rfc3339()));
                         heap.push(ScheduledJob {
                             agent_id: agent.id,
                             next_run: next,
@@ -256,8 +305,19 @@ impl SchedulerEngine {
         match schedule_type {
             "cron" => {
                 let expr = cron_expr?;
-                let schedule = Schedule::from_str(expr).ok()?;
-                schedule.after(base).next()
+                let schedule = match Schedule::from_str(expr) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        warn!("Failed to parse cron expression '{}': {}", expr, e);
+                        return None;
+                    }
+                };
+                let tz = self.resolve_timezone();
+                let base_local = base.with_timezone(&tz);
+                schedule
+                    .after(&base_local)
+                    .next()
+                    .map(|dt| dt.with_timezone(&Utc))
             }
             "interval" => {
                 let secs = interval_secs?;
@@ -276,8 +336,23 @@ impl SchedulerEngine {
         match agent.schedule_type.as_str() {
             "cron" => {
                 let expr = agent.cron_expr.as_ref()?;
-                let schedule = Schedule::from_str(expr).ok()?;
-                schedule.upcoming(Utc).next()
+                let schedule = match Schedule::from_str(expr) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        warn!(
+                            "Failed to parse cron expression '{}' for agent '{}': {}",
+                            expr, agent.name, e
+                        );
+                        return None;
+                    }
+                };
+                let tz = self.resolve_timezone();
+                // Compute next run in local timezone, then convert to UTC
+                let now_local = Utc::now().with_timezone(&tz);
+                schedule
+                    .after(&now_local)
+                    .next()
+                    .map(|dt| dt.with_timezone(&Utc))
             }
             "interval" => {
                 let secs = agent.interval_secs?;

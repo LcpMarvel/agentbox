@@ -21,6 +21,8 @@ thiserror = "2"
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 cron = "0.12"
+chrono-tz = "0.10"
+iana-time-zone = "0.1"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
 rust-embed = "8"
